@@ -119,6 +119,33 @@ class GitHubClient:
             response.raise_for_status()
             return response.json()
             
+    async def reply_to_review_comment(self, owner: str, repo: str, pr_number: int, 
+                                    comment_id: int, body: str) -> Dict[str, Any]:
+        """Reply to a specific review comment"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/comments"
+        
+        data = {
+            "body": body,
+            "in_reply_to": comment_id
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=self.headers, json=data)
+            response.raise_for_status()
+            return response.json()
+            
+    async def reply_to_issue_comment(self, owner: str, repo: str, pr_number: int, 
+                                   body: str) -> Dict[str, Any]:
+        """Reply to a general issue comment (these don't support direct replies, so we mention the user)"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/{pr_number}/comments"
+        
+        data = {"body": body}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=self.headers, json=data)
+            response.raise_for_status()
+            return response.json()
+            
     async def resolve_review_comment(self, owner: str, repo: str, comment_id: int) -> Dict[str, Any]:
         """Mark a review comment as resolved"""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/comments/{comment_id}"

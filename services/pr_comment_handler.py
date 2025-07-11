@@ -96,21 +96,58 @@ class PRCommentHandler:
                         files_modified.append(file_path)
                         handled_comments.extend(result["handled_comments"])
                         
-                        # Mark comments as resolved on GitHub
-                        for comment in result["handled_comments"]:
+                        # Reply to each handled comment and mark as resolved
+                        for i, comment in enumerate(result["handled_comments"]):
                             try:
+                                # Reply to the specific comment
+                                await self._reply_to_individual_comment(
+                                    owner, repo, pr_number, comment, file_comments[i]
+                                )
+                                
+                                # Mark as resolved
                                 if comment.get("id"):
                                     await self.github_client.resolve_review_comment(
                                         owner, repo, comment["id"]
                                     )
                             except Exception as e:
-                                logger.warning(f"Failed to resolve comment {comment.get('id')}: {e}")
+                                logger.warning(f"Failed to reply/resolve comment {comment.get('id')}: {e}")
                     else:
                         unresolved_comments.extend(file_comments)
                         
                 except Exception as e:
                     logger.error(f"Failed to handle comments for {file_path}: {e}")
                     unresolved_comments.extend(file_comments)
+            
+            # Handle general comments separately
+            if "general" in comments_by_file:
+                try:
+                    result = await self._handle_general_comments(
+                        sandbox, repo_path, comments_by_file["general"], repo_analysis
+                    )
+                    
+                    if result["modified"]:
+                        # Commit changes for general comments
+                        commit_message = "Address general PR feedback\n\n" + \
+                                       "\n".join([f"- {c['summary']}" for c in result["handled_comments"]])
+                        
+                        commit_sha = sandbox.commit_changes(commit_message)
+                        commits_made.append(commit_sha)
+                        handled_comments.extend(result["handled_comments"])
+                        
+                        # Reply to each general comment
+                        for i, comment in enumerate(result["handled_comments"]):
+                            try:
+                                await self._reply_to_individual_comment(
+                                    owner, repo, pr_number, comment, comments_by_file["general"][i]
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to reply to general comment: {e}")
+                    else:
+                        unresolved_comments.extend(comments_by_file["general"])
+                        
+                except Exception as e:
+                    logger.error(f"Failed to handle general comments: {e}")
+                    unresolved_comments.extend(comments_by_file["general"])
             
             # Push all changes
             if commits_made:
@@ -284,6 +321,35 @@ class PRCommentHandler:
             }
         
         return {"modified": False, "handled_comments": []}
+    
+    async def _reply_to_individual_comment(self, owner: str, repo: str, pr_number: int,
+                                         handled_comment: Dict, original_comment: Dict) -> None:
+        """Reply to an individual comment with details of how it was addressed"""
+        try:
+            # Create a personalized reply
+            user = original_comment.get("user", "")
+            summary = handled_comment.get("summary", "Your comment has been addressed")
+            
+            if original_comment["type"] == "review":
+                # For review comments (line-specific), reply directly
+                reply_body = f"@{user} ✅ **Comment Addressed**\n\n{summary}\n\n*This change was automatically implemented by the PR Comment Handler bot.*"
+                
+                await self.github_client.reply_to_review_comment(
+                    owner, repo, pr_number, original_comment["id"], reply_body
+                )
+                logger.info(f"Replied to review comment {original_comment['id']} by {user}")
+                
+            elif original_comment["type"] == "issue":
+                # For general issue comments, create a new comment mentioning the user
+                reply_body = f"@{user} ✅ **Your comment has been addressed**\n\n> {original_comment['body'][:100]}{'...' if len(original_comment['body']) > 100 else ''}\n\n{summary}\n\n*This change was automatically implemented by the PR Comment Handler bot.*"
+                
+                await self.github_client.reply_to_issue_comment(
+                    owner, repo, pr_number, reply_body
+                )
+                logger.info(f"Replied to issue comment by {user}")
+                
+        except Exception as e:
+            logger.error(f"Failed to reply to comment: {e}")
     
     async def _handle_general_comments(self, sandbox, repo_path: str, 
                                      comments: List[Dict], repo_analysis: Dict) -> Dict[str, Any]:
