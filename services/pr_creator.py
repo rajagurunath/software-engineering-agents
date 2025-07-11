@@ -39,10 +39,10 @@ class PRCreatorService:
                 logger.warning(f"Failed to fetch Linear context: {e}")
             
         with self.sandbox_manager.get_sandbox(sandbox_id) as sandbox:
-            # Clone repository
-            repo_path = sandbox.clone_repo(request.repo_url)
+            # Clone repository and checkout base branch
+            repo_path = sandbox.clone_repo(request.repo_url, request.base_branch)
             
-            # Create feature branch
+            # Create feature branch from base branch
             sandbox.create_branch(request.branch_name)
             
             # Clarification step
@@ -110,7 +110,8 @@ class PRCreatorService:
                 repo=repo,
                 title=f"feat: {request.description}",
                 body=self._generate_pr_body(request, linear_context, changes_made),
-                head=request.branch_name
+                head=request.branch_name,
+                base=request.base_branch
             )
             
             result = PRCreationResponse(
@@ -410,6 +411,10 @@ Dependencies:
 ## Description
 {request.description}
 
+## Branch Information
+- **Base Branch**: {request.base_branch}
+- **Feature Branch**: {request.branch_name}
+
 ## Changes Made
 - Files Modified: {len(changes_made['files_changed'])}
 - Files Created: {len(changes_made['files_created'])}
@@ -432,7 +437,7 @@ Dependencies:
 - **Priority**: {linear_context.get('priority', 'N/A')}
 - **Status**: {linear_context.get('state', {}).get('name', 'N/A')}
 
-[View in Linear]({linear_context.get('url', '')})
+[View in Linear](https://linear.app/issue/{request.linear_issue_id})
             """
             
         return body

@@ -33,6 +33,7 @@ class PRCreationRequest(BaseModel):
     description: str
     linear_issue_id: Optional[str] = None
     repo_url: str
+    base_branch: str
     branch_name: str
     channel_id: str
     thread_id: str

@@ -44,8 +44,33 @@ class SandboxEnvironment:
             shutil.rmtree(repo_path)
 
         repo_url_with_token = self._inject_token(repo_url)
-        self.repo = Repo.clone_from(repo_url_with_token, repo_path, branch=branch)
-        logger.info(f"Cloned {repo_url} to {repo_path}")
+        
+        try:
+            # First try to clone the specific branch
+            self.repo = Repo.clone_from(repo_url_with_token, repo_path, branch=branch)
+            logger.info(f"Cloned {repo_url} (branch: {branch}) to {repo_path}")
+        except Exception as e:
+            logger.warning(f"Failed to clone branch {branch}, trying default branch: {e}")
+            # If specific branch fails, clone default and checkout
+            self.repo = Repo.clone_from(repo_url_with_token, repo_path)
+            
+            # Try to checkout the requested branch
+            try:
+                # Check if branch exists remotely
+                origin = self.repo.remote("origin")
+                origin.fetch()
+                
+                # Check if branch exists in remote
+                remote_branches = [ref.name.split('/')[-1] for ref in origin.refs]
+                if branch in remote_branches:
+                    # Checkout existing remote branch
+                    self.repo.git.checkout(f"origin/{branch}", b=branch)
+                    logger.info(f"Checked out existing remote branch: {branch}")
+                else:
+                    logger.warning(f"Branch {branch} not found, staying on default branch")
+            except Exception as checkout_error:
+                logger.warning(f"Failed to checkout branch {branch}: {checkout_error}")
+                
         return str(repo_path)
         
     def create_branch(self, branch_name: str) -> None:

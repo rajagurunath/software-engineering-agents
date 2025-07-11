@@ -89,32 +89,59 @@ class SlackBotHandler:
                 user_id = message['user']
                 thread_ts = message.get('thread_ts', message['ts'])
                 
-                # Extract details from message
-                repo_url = self._extract_repo_url(text)
-                if not repo_url:
-                    await say("Please provide a valid GitHub repository URL")
+                # Parse the command: create pr <github_url> <branch_name> <description_or_linear_ticket>
+                parsed_input = self._parse_create_pr_command(text)
+                if not parsed_input:
+                    await say("""
+Please use the format: `create pr <github_url> <branch_name> <description_or_linear_ticket>`
+
+Examples:
+- `create pr https://github.com/owner/repo main Add dark theme support`
+- `create pr https://github.com/owner/repo develop https://linear.app/team/issue/ABC-123`
+- `create pr https://github.com/owner/repo feature/auth Fix login validation bug`
+                    """)
                     return
                     
-                description = self._extract_description(text)
-                if not description:
-                    await say("Please provide a description of what needs to be implemented")
-                    return
-                    
-                linear_issue_id = self._extract_linear_issue_id(text)
-                branch_name = self._generate_branch_name(description)
+                repo_url = parsed_input['repo_url']
+                base_branch = parsed_input['branch_name']
+                description_or_linear = parsed_input['description']
+                
+                # Check if it's a Linear ticket or description
+                linear_issue_id = None
+                description = description_or_linear
+                
+                if 'linear.app' in description_or_linear:
+                    linear_issue_id = self._extract_linear_issue_id(description_or_linear)
+                    if linear_issue_id:
+                        # Try to get Linear context for description
+                        try:
+                            from core.integrations.linear_client import LinearClient
+                            linear_client = LinearClient()
+                            linear_context = await linear_client.get_issue_details(linear_issue_id)
+                            if linear_context:
+                                description = linear_context.get('title', description_or_linear)
+                                await say(f"📋 Found Linear issue: {description}")
+                        except Exception as e:
+                            logger.warning(f"Failed to fetch Linear context: {e}")
+                            await say(f"⚠️ Could not fetch Linear details, using provided text as description")
+                            description = description_or_linear
+                
+                # Generate new feature branch name
+                feature_branch_name = self._generate_feature_branch_name(description)
                 
                 # Create PR request
                 pr_request = PRCreationRequest(
                     description=description,
                     linear_issue_id=linear_issue_id,
                     repo_url=repo_url,
-                    branch_name=branch_name,
+                    base_branch=base_branch,
+                    branch_name=feature_branch_name,
                     channel_id=message['channel'],
                     thread_id=thread_ts,
                     user_id=user_id
                 )
                 
-                await say("🚀 Starting PR creation... This may take several minutes.")
+                await say(f"🚀 Starting PR creation...\n📂 Repository: {repo_url}\n🌿 Base branch: {base_branch}\n🆕 Feature branch: {feature_branch_name}\n📝 Description: {description}")
                 
                 # Start workflow
                 result = await self.workflows.pr_creation_workflow(pr_request)
@@ -165,16 +192,44 @@ class SlackBotHandler:
             logger.info(body)
             "Message received"
             
+    def _parse_create_pr_command(self, text: str) -> Optional[Dict[str, str]]:
+        """Parse create pr command with github_url, branch_name, and description"""
+        import re
+        
+        # Remove "create pr" from the beginning
+        cleaned_text = re.sub(r'^create\s+pr\s+', '', text, flags=re.IGNORECASE).strip()
+        
+        # Extract GitHub URL
+        github_pattern = r'(https://github\.com/[\w-]+/[\w-]+(?:\.git)?)'
+        github_match = re.search(github_pattern, cleaned_text)
+        
+        if not github_match:
+            return None
+            
+        repo_url = github_match.group(1)
+        
+        # Remove the GitHub URL from the text
+        remaining_text = cleaned_text.replace(repo_url, '').strip()
+        
+        # Split remaining text into parts
+        parts = remaining_text.split(None, 1)  # Split into max 2 parts
+        
+        if len(parts) < 2:
+            return None
+            
+        branch_name = parts[0]
+        description = parts[1]
+        
+        return {
+            'repo_url': repo_url,
+            'branch_name': branch_name,
+            'description': description
+        }
+        
     def _extract_pr_url(self, text: str) -> str:
         """Extract PR URL from message text"""
         pr_pattern = r'https://github\.com/[\w-]+/[\w-]+/pull/\d+'
         match = re.search(pr_pattern, text)
-        return match.group(0) if match else None
-        
-    def _extract_repo_url(self, text: str) -> str:
-        """Extract repository URL from message text"""
-        repo_pattern = r'https://github\.com/[\w-]+/[\w-]+(?:\.git)?'
-        match = re.search(repo_pattern, text)
         return match.group(0) if match else None
         
     def _extract_linear_issue_id(self, text: str) -> str:
@@ -183,22 +238,18 @@ class SlackBotHandler:
         match = re.search(linear_pattern, text)
         return match.group(1) if match else None
         
-    def _extract_description(self, text: str) -> str:
-        """Extract description from message text"""
-        # Remove command and URLs, return the remaining text
-        cleaned = re.sub(r'create pr\s+', '', text, flags=re.IGNORECASE)
-        cleaned = re.sub(r'https?://\S+', '', cleaned)
-        return cleaned.strip()
-        
-    def _generate_branch_name(self, description: str) -> str:
-        """Generate branch name from description"""
+    def _generate_feature_branch_name(self, description: str) -> str:
+        """Generate feature branch name from description"""
+        import uuid
         # Convert to lowercase, replace spaces with hyphens
         branch_name = description.lower().replace(' ', '-')
         # Remove special characters
         branch_name = re.sub(r'[^a-z0-9-]', '', branch_name)
         # Limit length
         branch_name = branch_name[:50]
-        return f"feature/{branch_name}"
+        # Add unique suffix to avoid conflicts
+        unique_suffix = uuid.uuid4().hex[:6]
+        return f"feature/{branch_name}-{unique_suffix}"
         
     async def _send_review_results(self, say, result):
         """Send PR review results to Slack"""
