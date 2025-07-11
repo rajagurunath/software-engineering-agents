@@ -89,49 +89,56 @@ class SlackBotHandler:
                 user_id = message['user']
                 thread_ts = message.get('thread_ts', message['ts'])
                 
-                # Parse the command: create pr <github_url> <branch_name> <description_or_linear_ticket>
-                parsed_input = self._parse_create_pr_command(text)
+                # Parse the structured command
+                parsed_input = self._parse_structured_pr_command(text)
                 if not parsed_input:
                     await say("""
-Please use the format: `create pr <github_url> <branch_name> <description_or_linear_ticket>`
+🚀 **Create PR Command Format:**
 
+**Option 1: With Description**
+```
+create pr
+repo: https://github.com/owner/repo
+branch: main
+description: Add dark theme support
+```
 Examples:
 - `create pr https://github.com/owner/repo main Add dark theme support`
 - `create pr https://github.com/owner/repo develop https://linear.app/team/issue/ABC-123`
 - `create pr https://github.com/owner/repo feature/auth Fix login validation bug`
                     """)
                     return
+**Option 3: One-line format**
+```
+create pr --repo=https://github.com/owner/repo --branch=main --desc="Add dark theme"
+```
                     
-                repo_url = parsed_input['repo_url']
-                base_branch = parsed_input['branch_name']
-                description_or_linear = parsed_input['description']
-                
                 # Check if it's a Linear ticket or description
                 linear_issue_id = None
                 description = description_or_linear
                 
                 if 'linear.app' in description_or_linear:
-                    linear_issue_id = self._extract_linear_issue_id(description_or_linear)
+                description = parsed_input['description']
+                linear_url = parsed_input.get('linear_url')
                     if linear_issue_id:
-                        # Try to get Linear context for description
                         try:
-                            from core.integrations.linear_client import LinearClient
                             linear_client = LinearClient()
-                            linear_context = await linear_client.get_issue_details(linear_issue_id)
-                            if linear_context:
+                # Handle Linear ticket if provided
+                if linear_url:
+                    linear_issue_id = self._extract_linear_issue_id(linear_url)
                                 description = linear_context.get('title', description_or_linear)
-                                await say(f"📋 Found Linear issue: {description}")
                         except Exception as e:
                             logger.warning(f"Failed to fetch Linear context: {e}")
                             await say(f"⚠️ Could not fetch Linear details, using provided text as description")
                             description = description_or_linear
                 
-                # Generate new feature branch name
+                                description = linear_context.get('title', description)
                 feature_branch_name = self._generate_feature_branch_name(description)
+                            else:
+                                await say(f"⚠️ Could not fetch Linear details for {linear_issue_id}")
                 
                 # Create PR request
-                pr_request = PRCreationRequest(
-                    description=description,
+                            await say(f"⚠️ Linear API error: {str(e)}")
                     linear_issue_id=linear_issue_id,
                     repo_url=repo_url,
                     base_branch=base_branch,
@@ -187,21 +194,80 @@ Examples:
             
             await say(f"❌ <@{user_id}> rejected execution {execution_id}")
 
+**Option 2: With Linear Ticket**
+```
+create pr
+repo: https://github.com/owner/repo  
+branch: develop
+linear: https://linear.app/team/issue/ABC-123
+```
         @self.app.event("message")
         async def handle_message_events(body, logger):
             logger.info(body)
             "Message received"
             
-    def _parse_create_pr_command(self, text: str) -> Optional[Dict[str, str]]:
-        """Parse create pr command with github_url, branch_name, and description"""
+    def _parse_structured_pr_command(self, text: str) -> Optional[Dict[str, str]]:
+        """Parse structured PR command with multiple format support"""
         import re
         
-        # Remove "create pr" from the beginning
-        cleaned_text = re.sub(r'^create\s+pr\s+', '', text, flags=re.IGNORECASE).strip()
+        # Try one-line format first: create pr --repo=... --branch=... --desc=...
+        oneline_pattern = r'create\s+pr\s+--repo=([^\s]+)\s+--branch=([^\s]+)\s+--(?:desc|description)=([^\s]+(?:\s+[^\s]+)*)'
+        oneline_match = re.search(oneline_pattern, text, re.IGNORECASE)
         
-        # Extract GitHub URL
-        github_pattern = r'(https://github\.com/[\w-]+/[\w-]+(?:\.git)?)'
-        github_match = re.search(github_pattern, cleaned_text)
+        if oneline_match:
+            return {
+                'repo_url': oneline_match.group(1),
+                'base_branch': oneline_match.group(2),
+                'description': oneline_match.group(3).strip('"\''),
+            }
+        
+        # Try one-line with linear: create pr --repo=... --branch=... --linear=...
+        oneline_linear_pattern = r'create\s+pr\s+--repo=([^\s]+)\s+--branch=([^\s]+)\s+--linear=([^\s]+)'
+        oneline_linear_match = re.search(oneline_linear_pattern, text, re.IGNORECASE)
+        
+        if oneline_linear_match:
+            return {
+                'repo_url': oneline_linear_match.group(1),
+                'base_branch': oneline_linear_match.group(2),
+                'description': 'From Linear ticket',
+                'linear_url': oneline_linear_match.group(3),
+            }
+        
+        # Try structured multi-line format
+        lines = text.split('\n')
+        if len(lines) < 4:  # Need at least 4 lines for structured format
+            return None
+            
+        parsed = {}
+        
+        for line in lines[1:]:  # Skip first line "create pr"
+            line = line.strip()
+            if ':' not in line:
+                continue
+                
+            key, value = line.split(':', 1)
+            key = key.strip().lower()
+            value = value.strip()
+            
+            if key == 'repo':
+                parsed['repo_url'] = value
+            elif key == 'branch':
+                parsed['base_branch'] = value
+            elif key in ['description', 'desc']:
+                parsed['description'] = value
+            elif key == 'linear':
+                parsed['linear_url'] = value
+                if 'description' not in parsed:
+                    parsed['description'] = 'From Linear ticket'
+        
+        # Validate required fields
+        if 'repo_url' not in parsed or 'base_branch' not in parsed:
+            return None
+            
+        if 'description' not in parsed and 'linear_url' not in parsed:
+            return None
+        
+        return parsed
         
         if not github_match:
             return None

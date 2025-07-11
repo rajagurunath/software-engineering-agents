@@ -45,6 +45,8 @@ class SandboxEnvironment:
 
         repo_url_with_token = self._inject_token(repo_url)
         
+        logger.info(f"Attempting to clone {repo_url} with branch: {branch}")
+        
         try:
             # First try to clone the specific branch
             self.repo = Repo.clone_from(repo_url_with_token, repo_path, branch=branch)
@@ -62,6 +64,8 @@ class SandboxEnvironment:
                 
                 # Check if branch exists in remote
                 remote_branches = [ref.name.split('/')[-1] for ref in origin.refs]
+                logger.info(f"Available remote branches: {remote_branches}")
+                
                 if branch in remote_branches:
                     # Checkout existing remote branch
                     self.repo.git.checkout(f"origin/{branch}", b=branch)

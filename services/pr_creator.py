@@ -153,7 +153,7 @@ class PRCreatorService:
                 f"*🛠 Implementation Plan:*\n{plan.get('summary', '')}\n\n"
                 f"*📄 Files to be created/modified:*\n" + "\n".join(f"- {p}" for p in files)
             )
-            await client.chat_postMessage(channel=request.channel_id, text=message, thread_ts=request.thread_id)
+            client.chat_postMessage(channel=request.channel_id, text=message, thread_ts=request.thread_id)
         except Exception as e:
             logger.warning(f"Failed to post plan to Slack: {e}")
 
@@ -272,7 +272,11 @@ Dependencies:
         # Install dependencies first if needed
         dependencies = plan.get("dependencies", [])
         if dependencies:
-            await self._install_dependencies(sandbox, dependencies, repo_path)
+                try:
+                    await self._install_dependencies(sandbox, dependencies, repo_path)
+                except Exception as e:
+                    logger.warning(f"Failed to install dependencies: {e}")
+                    # Continue without dependencies
         
         # Process each file change
         for file_change in plan.get("file_changes", []):
@@ -287,10 +291,12 @@ Dependencies:
                 with open(full_path, "w") as f:
                     f.write(content)
                 changes_made["files_created"].append(file_path)
+                logger.info(f"Created file: {file_path}")
             elif change_type == "modify":
                 with open(full_path, "w") as f:
                     f.write(content)
                 changes_made["files_changed"].append(file_path)
+                logger.info(f"Modified file: {file_path}")
                 
         # Add tests
         for test_file in plan.get("test_files", []):
@@ -302,6 +308,7 @@ Dependencies:
             with open(test_full_path, "w") as f:
                 f.write(test_content)
             changes_made["tests_added"].append(test_path)
+            logger.info(f"Added test file: {test_path}")
             
         return changes_made
     

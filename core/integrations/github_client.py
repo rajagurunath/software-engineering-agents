@@ -60,11 +60,29 @@ class GitHubClient:
             "body": body,
             "head": head,
             "base": base,
-            "draft": True
+            "draft": False
         }
+        
+        logger.info(f"Creating PR: {title} from {head} to {base}")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=self.headers, json=data)
+            
+            if response.status_code == 422:
+                # Log the error details for debugging
+                error_details = response.json()
+                logger.error(f"GitHub PR creation failed (422): {error_details}")
+                
+                # Check for common issues
+                if 'errors' in error_details:
+                    for error in error_details['errors']:
+                        if 'message' in error:
+                            logger.error(f"GitHub error: {error['message']}")
+                            
+                # Try to provide helpful error message
+                if 'message' in error_details:
+                    raise Exception(f"GitHub PR creation failed: {error_details['message']}")
+                    
             response.raise_for_status()
             return response.json()
             
