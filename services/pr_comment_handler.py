@@ -35,7 +35,14 @@ class PRCommentHandler:
             self.github_client.get_pr_review_comments(owner, repo, pr_number),
             self.github_client.get_pr_issue_comments(owner, repo, pr_number)
         )
-        
+        logger.info(f"Fetched PR details for {owner}/{repo}#{pr_number}")
+        trace("pr_comment_handler.fetched_details", {
+            "owner": owner,
+            "repo": repo,
+            "pr_number": pr_number,
+            "review_comments_count": len(review_comments),
+            "issue_comments_count": len(issue_comments)
+        })
         # Filter actionable comments (exclude resolved, bot comments, etc.)
         actionable_comments = self._filter_actionable_comments(review_comments, issue_comments)
         
@@ -140,7 +147,7 @@ class PRCommentHandler:
     def _filter_actionable_comments(self, review_comments: List[Dict], issue_comments: List[Dict]) -> List[Dict]:
         """Filter comments to find actionable ones"""
         actionable = []
-        
+        logger.info(f"Filtering actionable comments from {len(review_comments)} review comments and {len(issue_comments)} issue comments...")
         # Process review comments (line-specific)
         for comment in review_comments:
             if self._is_actionable_comment(comment):
@@ -158,6 +165,7 @@ class PRCommentHandler:
         
         # Process issue comments (general PR comments)
         for comment in issue_comments:
+            logger.debug(f"Processing issue comment: {comment['body'][:50]}...")
             if self._is_actionable_comment(comment):
                 logger.info(f"Adding actionable issue comment from {comment['user']['login']}: {comment['body'][:50]}...")
                 actionable.append({
@@ -212,6 +220,7 @@ class PRCommentHandler:
         # If comment is longer than 20 characters and doesn't contain non-actionable phrases,
         # consider it potentially actionable even without specific keywords
         is_substantial_comment = len(body.strip()) > 20
+        return has_actionable_keywords or is_substantial_comment
         
     
     def _group_comments_by_file(self, comments: List[Dict]) -> Dict[str, List[Dict]]:
