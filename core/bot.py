@@ -11,7 +11,6 @@ from models.schemas import PRReviewRequest, PRCreationRequest
 from config.settings import settings
 import re
 from utils.opik_tracer import trace
-# from slack_bolt.adapter.socket_mode import SocketModeHandler
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -93,52 +92,65 @@ class SlackBotHandler:
                 parsed_input = self._parse_structured_pr_command(text)
                 if not parsed_input:
                     await say("""
-🚀 **Create PR Command Format:**
+🚀 **Create PR Command Formats:**
 
-**Option 1: With Description**
+**Option 1: Multi-line structured format**
 ```
 create pr
 repo: https://github.com/owner/repo
 branch: main
 description: Add dark theme support
 ```
-Examples:
-- `create pr https://github.com/owner/repo main Add dark theme support`
-- `create pr https://github.com/owner/repo develop https://linear.app/team/issue/ABC-123`
-- `create pr https://github.com/owner/repo feature/auth Fix login validation bug`
-                    """)
-                    return
+
+**Option 2: Multi-line with Linear**
+```
+create pr
+repo: https://github.com/owner/repo  
+branch: develop
+linear: https://linear.app/team/issue/ABC-123
+```
+
 **Option 3: One-line format**
 ```
 create pr --repo=https://github.com/owner/repo --branch=main --desc="Add dark theme"
 ```
+
+**Option 4: One-line with Linear**
+```
+create pr --repo=https://github.com/owner/repo --branch=develop --linear=https://linear.app/team/issue/ABC-123
+```
+                    """)
+                    return
                     
-                # Check if it's a Linear ticket or description
-                linear_issue_id = None
-                description = description_or_linear
-                
-                if 'linear.app' in description_or_linear:
+                # Extract values from parsed input
+                repo_url = parsed_input['repo_url']
+                base_branch = parsed_input['base_branch']
                 description = parsed_input['description']
                 linear_url = parsed_input.get('linear_url')
-                    if linear_issue_id:
-                        try:
-                            linear_client = LinearClient()
+                
                 # Handle Linear ticket if provided
+                linear_issue_id = None
                 if linear_url:
                     linear_issue_id = self._extract_linear_issue_id(linear_url)
-                                description = linear_context.get('title', description_or_linear)
-                        except Exception as e:
-                            logger.warning(f"Failed to fetch Linear context: {e}")
-                            await say(f"⚠️ Could not fetch Linear details, using provided text as description")
-                            description = description_or_linear
-                
+                    if linear_issue_id:
+                        try:
+                            from core.integrations.linear_client import LinearClient
+                            linear_client = LinearClient()
+                            linear_context = await linear_client.get_issue_details(linear_issue_id)
+                            if linear_context:
                                 description = linear_context.get('title', description)
-                feature_branch_name = self._generate_feature_branch_name(description)
                             else:
                                 await say(f"⚠️ Could not fetch Linear details for {linear_issue_id}")
+                        except Exception as e:
+                            logger.warning(f"Linear API error: {e}")
+                            await say(f"⚠️ Linear API error: {str(e)}")
+                
+                # Generate feature branch name
+                feature_branch_name = self._generate_feature_branch_name(description)
                 
                 # Create PR request
-                            await say(f"⚠️ Linear API error: {str(e)}")
+                pr_request = PRCreationRequest(
+                    description=description,
                     linear_issue_id=linear_issue_id,
                     repo_url=repo_url,
                     base_branch=base_branch,
@@ -194,31 +206,23 @@ create pr --repo=https://github.com/owner/repo --branch=main --desc="Add dark th
             
             await say(f"❌ <@{user_id}> rejected execution {execution_id}")
 
-**Option 2: With Linear Ticket**
-```
-create pr
-repo: https://github.com/owner/repo  
-branch: develop
-linear: https://linear.app/team/issue/ABC-123
-```
         @self.app.event("message")
         async def handle_message_events(body, logger):
             logger.info(body)
-            "Message received"
             
-    def _parse_structured_pr_command(self, text: str) -> Optional[Dict[str, str]]:
+    def _parse_structured_pr_command(self, text: str) -> Dict[str, str]:
         """Parse structured PR command with multiple format support"""
         import re
         
         # Try one-line format first: create pr --repo=... --branch=... --desc=...
-        oneline_pattern = r'create\s+pr\s+--repo=([^\s]+)\s+--branch=([^\s]+)\s+--(?:desc|description)=([^\s]+(?:\s+[^\s]+)*)'
+        oneline_pattern = r'create\s+pr\s+--repo=([^\s]+)\s+--branch=([^\s]+)\s+--(?:desc|description)="([^"]+)"'
         oneline_match = re.search(oneline_pattern, text, re.IGNORECASE)
         
         if oneline_match:
             return {
                 'repo_url': oneline_match.group(1),
                 'base_branch': oneline_match.group(2),
-                'description': oneline_match.group(3).strip('"\''),
+                'description': oneline_match.group(3),
             }
         
         # Try one-line with linear: create pr --repo=... --branch=... --linear=...
@@ -268,29 +272,6 @@ linear: https://linear.app/team/issue/ABC-123
             return None
         
         return parsed
-        
-        if not github_match:
-            return None
-            
-        repo_url = github_match.group(1)
-        
-        # Remove the GitHub URL from the text
-        remaining_text = cleaned_text.replace(repo_url, '').strip()
-        
-        # Split remaining text into parts
-        parts = remaining_text.split(None, 1)  # Split into max 2 parts
-        
-        if len(parts) < 2:
-            return None
-            
-        branch_name = parts[0]
-        description = parts[1]
-        
-        return {
-            'repo_url': repo_url,
-            'branch_name': branch_name,
-            'description': description
-        }
         
     def _extract_pr_url(self, text: str) -> str:
         """Extract PR URL from message text"""
@@ -408,6 +389,5 @@ linear: https://linear.app/team/issue/ABC-123
         """Start the Slack bot"""
         logger.info("Starting Slack bot...")
         
-        # self.app.start(port=int(settings.slack_port))
         handler = AsyncSocketModeHandler(self.app, settings.slack_app_token)
         await handler.start_async()
