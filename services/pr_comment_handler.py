@@ -103,12 +103,6 @@ class PRCommentHandler:
                                 await self._reply_to_individual_comment(
                                     owner, repo, pr_number, comment, file_comments[i]
                                 )
-                                
-                                # Mark as resolved
-                                if comment.get("id"):
-                                    await self.github_client.resolve_review_comment(
-                                        owner, repo, comment["id"]
-                                    )
                             except Exception as e:
                                 logger.warning(f"Failed to reply/resolve comment {comment.get('id')}: {e}")
                     else:
@@ -333,6 +327,7 @@ class PRCommentHandler:
             if original_comment["type"] == "review":
                 # For review comments (line-specific), reply directly
                 reply_body = f"@{user} ✅ **Comment Addressed**\n\n{summary}\n\n*This change was automatically implemented by the PR Comment Handler bot.*"
+                reply_body += f"\n\n**Please review the changes and resolve this comment if you're satisfied with the implementation.**"
                 
                 await self.github_client.reply_to_review_comment(
                     owner, repo, pr_number, original_comment["id"], reply_body
@@ -342,6 +337,7 @@ class PRCommentHandler:
             elif original_comment["type"] == "issue":
                 # For general issue comments, create a new comment mentioning the user
                 reply_body = f"@{user} ✅ **Your comment has been addressed**\n\n> {original_comment['body'][:100]}{'...' if len(original_comment['body']) > 100 else ''}\n\n{summary}\n\n*This change was automatically implemented by the PR Comment Handler bot.*"
+                reply_body += f"\n\n**Please review the changes and resolve this comment if you're satisfied with the implementation.**"
                 
                 await self.github_client.reply_to_issue_comment(
                     owner, repo, pr_number, reply_body
