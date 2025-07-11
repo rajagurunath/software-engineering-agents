@@ -95,17 +95,47 @@ Your response must be valid JSON that can be parsed."""},
         
     async def suggest_test_fixes(self, prompt: str) -> Dict[str, Any]:
         """Suggest fixes for test failures"""
+        trace("llm.suggest_test_fixes", {"prompt_length": len(prompt)})
+        
         response = await self.client.chat.completions.create(
             model=settings.io_model,
             messages=[
-                {"role": "system", "content": "You are a testing expert. Analyze test failures and suggest fixes."},
+                {"role": "system", "content": """You are a testing expert. Analyze test failures and suggest specific fixes.
+                
+IMPORTANT:
+1. Only suggest fixes for files that actually exist or were mentioned as changed
+2. Provide complete file content, not just snippets
+3. Use the correct file paths relative to repository root
+4. Return valid JSON format
+5. If no fixes are needed, return empty fixes array
+
+Return JSON in this format:
+{
+    "fixes": [
+        {
+            "file": "relative/path/to/file",
+            "content": "complete file content",
+            "reasoning": "explanation of the fix"
+        }
+    ]
+}"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.1
+            temperature=0.1,
+            response_format={"type": "json_object"}
         )
         
         content = response.choices[0].message.content
-        return self._parse_test_fixes(content)
+        trace("llm.test_fixes_generated", {"response_length": len(content)})
+        
+        try:
+            import json
+            fixes = json.loads(content)
+            return fixes
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse test fixes JSON: {e}")
+            logger.error(f"Response content: {content}")
+            return {"fixes": []}
         
     def _parse_code_analysis(self, content: str) -> Dict[str, Any]:
         """Parse code analysis response"""
@@ -204,11 +234,30 @@ Your response must be valid JSON that can be parsed."""},
         
     def _parse_test_fixes(self, content: str) -> Dict[str, Any]:
         """Parse test fix suggestions"""
-        return {
-            "fixes": [
-                {
-                    "file": "src/example.py",
-                    "content": "# Fixed code would go here"
-                }
-            ]
-        }
+        logger.warning("Using fallback test fixes parser")
+        
+        # Try to extract file paths and content from markdown-style response
+        lines = content.split('\n')
+        fixes = []
+        current_file = None
+        current_content = []
+        in_code_block = False
+        
+        for line in lines:
+            if line.strip().startswith('```'):
+                if in_code_block and current_file:
+                    # End of code block
+                    fixes.append({
+                        "file": current_file,
+                        "content": '\n'.join(current_content),
+                        "reasoning": "Generated from fallback parser"
+                    })
+                    current_content = []
+                    current_file = None
+                in_code_block = not in_code_block
+            elif in_code_block:
+                current_content.append(line)
+            elif line.strip().startswith('File:') or line.strip().startswith('Path:'):
+                current_file = line.split(':', 1)[1].strip()
+        
+        return {"fixes": fixes}

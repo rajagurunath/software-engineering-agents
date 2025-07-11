@@ -80,10 +80,18 @@ class PRCreatorService:
             
             # If tests fail, attempt to fix
             if not self._tests_passed(test_results):
-                fix_attempts = await self._fix_test_failures(
-                    sandbox, test_results, changes_made
-                )
-                test_results = sandbox.run_tests()
+                try:
+                    fix_attempts = await self._fix_test_failures(
+                        sandbox, test_results, changes_made
+                    )
+                    # Re-run tests after fixes
+                    if fix_attempts.get("fixes"):
+                        test_results = sandbox.run_tests()
+                        trace("pr_creator.tests_rerun", {"fixes_applied": len(fix_attempts["fixes"])})
+                except Exception as e:
+                    logger.error(f"Failed to fix test failures: {e}")
+                    trace("pr_creator.fix_tests_error", {"error": str(e)})
+                    # Continue with original test results
                 
             # Commit changes
             commit_message = f"feat: {request.description}"
@@ -339,11 +347,16 @@ Dependencies:
     async def _fix_test_failures(self, sandbox, test_results: Dict, 
                                changes_made: Dict) -> Dict[str, Any]:
         """Attempt to fix test failures"""
+        trace("pr_creator.fix_test_failures", {"test_results": list(test_results.keys())})
+        
         failure_info = []
         for cmd, result in test_results.items():
             if result.get("status") == "failed":
                 failure_info.append(f"Command: {cmd}\nError: {result.get('output', '')}")
-                
+        
+        if not failure_info:
+            return {"fixes": []}
+            
         # Use LLM to suggest fixes
         fix_prompt = f"""
         The following test failures occurred:
@@ -351,8 +364,10 @@ Dependencies:
         {chr(10).join(failure_info)}
         
         Files changed: {changes_made['files_changed']}
+        Files created: {changes_made['files_created']}
         
-        Suggest specific fixes for these test failures.
+        Suggest specific fixes for these test failures. Only suggest fixes for files that actually exist.
+        Provide the complete file path relative to the repository root.
         """
         
         fixes = await self.llm_client.suggest_test_fixes(fix_prompt)
@@ -362,8 +377,20 @@ Dependencies:
             file_path = fix["file"]
             new_content = fix["content"]
             
-            with open(file_path, "w") as f:
-                f.write(new_content)
+            # Ensure the file path is relative to repo root
+            full_path = Path(sandbox.sandbox_path) / "repo" / file_path
+            
+            # Only apply fix if the file exists or is in our changes
+            if full_path.exists() or file_path in changes_made.get('files_changed', []) or file_path in changes_made.get('files_created', []):
+                try:
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(full_path, "w") as f:
+                        f.write(new_content)
+                    logger.info(f"Applied fix to {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to apply fix to {file_path}: {e}")
+            else:
+                logger.warning(f"Skipping fix for non-existent file: {file_path}")
                 
         return fixes
         
