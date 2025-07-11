@@ -220,6 +220,12 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
         async def handle_message_events(body, logger):
             logger.info(body)
             
+        @self.app.event("assistant_thread_started")
+        async def handle_assistant_thread_started_events(body, logger,say):
+            logger.info(body)
+            user_id = body['event']['assistant_thread']['user_id']
+            await say(f"Hello <@{user_id}>, I am your assistant! How can I help you today?")
+
     def _parse_structured_pr_command(self, text: str) -> Dict[str, str]:
         """Parse structured PR command with multiple format support"""
         import re

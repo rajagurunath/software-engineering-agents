@@ -3,6 +3,7 @@ from typing import Dict, List, Any
 from config.settings import settings
 from opik.integrations.openai import track_openai
 import os
+from utils.opik_tracer import trace
 os.environ["OPIK_URL_OVERRIDE"] = "http://localhost:5173/api"
 
 class LLMClient:
