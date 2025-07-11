@@ -116,6 +116,13 @@ class PRCommentHandler:
             if commits_made:
                 sandbox.push_branch(pr_branch)
                 
+            # Post summary comment to GitHub PR
+            if handled_comments or commits_made:
+                await self._post_github_summary_comment(
+                    owner, repo, pr_number, handled_comments, commits_made, 
+                    files_modified, unresolved_comments
+                )
+                
             # Generate summary
             summary = self._generate_summary(handled_comments, commits_made, files_modified, unresolved_comments)
             
@@ -130,7 +137,8 @@ class PRCommentHandler:
             
             trace("pr_comment_handler.complete", {
                 "comments_handled": len(handled_comments),
-                "commits_made": len(commits_made)
+                "commits_made": len(commits_made),
+                "github_summary_posted": len(handled_comments) > 0 or len(commits_made) > 0
             })
             
             return result
@@ -392,6 +400,90 @@ class PRCommentHandler:
         """
         
         return summary.strip()
+    
+    async def _post_github_summary_comment(self, owner: str, repo: str, pr_number: int,
+                                         handled_comments: List[Dict], commits: List[str],
+                                         files_modified: List[str], unresolved: List[Dict]) -> None:
+        """Post a summary comment to the GitHub PR"""
+        try:
+            # Create a comprehensive summary comment
+            comment_body = self._generate_github_comment_body(
+                handled_comments, commits, files_modified, unresolved
+            )
+            
+            # Post the comment to GitHub
+            await self.github_client.add_pr_comment(owner, repo, pr_number, comment_body)
+            logger.info(f"Posted summary comment to PR #{pr_number}")
+            
+        except Exception as e:
+            logger.error(f"Failed to post summary comment to GitHub PR: {e}")
+    
+    def _generate_github_comment_body(self, handled_comments: List[Dict], commits: List[str],
+                                    files_modified: List[str], unresolved: List[Dict]) -> str:
+        """Generate the GitHub comment body with summary"""
+        
+        # Header with bot identification
+        comment_body = "## 🤖 Automated Comment Resolution\n\n"
+        comment_body += f"I've automatically addressed **{len(handled_comments)}** review comments. Here's what I did:\n\n"
+        
+        # Summary stats
+        comment_body += "### 📊 Summary\n"
+        comment_body += f"- **Comments Addressed**: {len(handled_comments)}\n"
+        comment_body += f"- **Files Modified**: {len(files_modified)}\n"
+        comment_body += f"- **Commits Made**: {len(commits)}\n"
+        
+        if unresolved:
+            comment_body += f"- **Unresolved Comments**: {len(unresolved)}\n"
+        
+        comment_body += "\n"
+        
+        # Files changed section
+        if files_modified:
+            comment_body += "### 📝 Files Modified\n"
+            for file_path in files_modified:
+                comment_body += f"- `{file_path}`\n"
+            comment_body += "\n"
+        
+        # Detailed changes section
+        if handled_comments:
+            comment_body += "### ✅ Comments Addressed\n"
+            for i, comment in enumerate(handled_comments[:10], 1):  # Limit to first 10
+                summary = comment.get('summary', 'Comment addressed')
+                comment_body += f"{i}. {summary}\n"
+            
+            if len(handled_comments) > 10:
+                comment_body += f"... and {len(handled_comments) - 10} more comments\n"
+            comment_body += "\n"
+        
+        # Commits section
+        if commits:
+            comment_body += "### 🔗 Commits Made\n"
+            for commit in commits:
+                short_sha = commit[:8] if len(commit) > 8 else commit
+                comment_body += f"- [`{short_sha}`](../../commit/{commit})\n"
+            comment_body += "\n"
+        
+        # Unresolved comments section
+        if unresolved:
+            comment_body += "### ⚠️ Unresolved Comments\n"
+            comment_body += f"I couldn't automatically address {len(unresolved)} comment(s). These may require manual review:\n\n"
+            
+            for i, comment in enumerate(unresolved[:5], 1):  # Show first 5 unresolved
+                body_preview = comment.get('body', '')[:100]
+                if len(comment.get('body', '')) > 100:
+                    body_preview += "..."
+                comment_body += f"{i}. {body_preview}\n"
+            
+            if len(unresolved) > 5:
+                comment_body += f"... and {len(unresolved) - 5} more unresolved comments\n"
+            comment_body += "\n"
+        
+        # Footer
+        comment_body += "---\n"
+        comment_body += "*This comment was automatically generated by the PR Comment Handler bot. "
+        comment_body += "Please review the changes and let me know if any adjustments are needed.*"
+        
+        return comment_body
     
     def _sanitize_comment(self, comment: Dict) -> Dict[str, Any]:
         """Sanitize comment for response"""
