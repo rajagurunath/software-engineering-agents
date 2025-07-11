@@ -66,3 +66,17 @@ class ApprovalRequest(BaseModel):
     context: Dict[str, Any]
     requested_by: str
     requested_at: datetime = Field(default_factory=datetime.now)
+class PRCommentHandlingRequest(BaseModel):
+    pr_url: str
+    thread_id: str
+    user_id: str
+    channel_id: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+class PRCommentHandlingResponse(BaseModel):
+    pr_url: str
+    comments_handled: int
+    commits_made: List[str]
+    files_modified: List[str]
+    summary: str
+    unresolved_comments: List[Dict[str, Any]]

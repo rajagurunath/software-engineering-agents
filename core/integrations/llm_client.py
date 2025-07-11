@@ -262,3 +262,95 @@ Return JSON in this format:
                 current_file = line.split(':', 1)[1].strip()
         
         return {"fixes": fixes}
+        
+    async def address_pr_comments(self, context: str) -> Dict[str, Any]:
+        """Address PR comments for a specific file"""
+        trace("llm.address_pr_comments", {"context_length": len(context)})
+        
+        response = await self.client.chat.completions.create(
+            model=settings.io_model,
+            messages=[
+                {"role": "system", "content": """You are a senior software engineer addressing PR review comments.
+                
+INSTRUCTIONS:
+1. Carefully read the file content and all comments
+2. Address each comment by modifying the code appropriately
+3. Maintain existing code style and structure
+4. Only make necessary changes to address the feedback
+5. Return valid JSON with the modified file content
+
+Return JSON in this format:
+{
+    "modified": true/false,
+    "new_content": "complete modified file content",
+    "handled_comments": [
+        {
+            "id": "comment_id",
+            "summary": "brief description of how this comment was addressed"
+        }
+    ],
+    "reasoning": "explanation of changes made"
+}"""},
+                {"role": "user", "content": context}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content
+        trace("llm.pr_comments_addressed", {"response_length": len(content)})
+        
+        try:
+            import json
+            result = json.loads(content)
+            return result
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse PR comment response as JSON: {e}")
+            return {"modified": False, "handled_comments": []}
+    
+    async def address_general_pr_comments(self, context: str) -> Dict[str, Any]:
+        """Address general PR comments that don't target specific files"""
+        trace("llm.address_general_pr_comments", {"context_length": len(context)})
+        
+        response = await self.client.chat.completions.create(
+            model=settings.io_model,
+            messages=[
+                {"role": "system", "content": """You are a senior software engineer addressing general PR feedback.
+                
+INSTRUCTIONS:
+1. Analyze the general comments and determine what files need changes
+2. Provide specific file modifications to address the feedback
+3. Consider the repository structure and technology stack
+4. Make appropriate changes across multiple files if needed
+
+Return JSON in this format:
+{
+    "file_changes": [
+        {
+            "path": "relative/path/to/file",
+            "content": "complete file content",
+            "reasoning": "why this file was modified"
+        }
+    ],
+    "handled_comments": [
+        {
+            "summary": "brief description of how this comment was addressed"
+        }
+    ]
+}"""},
+                {"role": "user", "content": context}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content
+        trace("llm.general_pr_comments_addressed", {"response_length": len(content)})
+        
+        try:
+            import json
+            result = json.loads(content)
+            return result
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse general PR comment response as JSON: {e}")
+            return {"file_changes": [], "handled_comments": []}

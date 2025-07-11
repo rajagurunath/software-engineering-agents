@@ -100,3 +100,47 @@ class GitHubClient:
             response = await client.post(url, headers=self.headers, json=data)
             response.raise_for_status()
             return response.json()
+            
+    async def get_pr_review_comments(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
+        """Get review comments (line-specific comments) for a PR"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/comments"
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+            
+    async def get_pr_issue_comments(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
+        """Get general issue comments for a PR"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/{pr_number}/comments"
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+            
+    async def resolve_review_comment(self, owner: str, repo: str, comment_id: int) -> Dict[str, Any]:
+        """Mark a review comment as resolved"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/comments/{comment_id}"
+        
+        data = {"resolved": True}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(url, headers=self.headers, json=data)
+            response.raise_for_status()
+            return response.json()
+            
+    async def get_file_content(self, owner: str, repo: str, file_path: str, ref: str = "main") -> str:
+        """Get content of a specific file"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{file_path}"
+        
+        params = {"ref": ref}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Decode base64 content
+            import base64
+            return base64.b64decode(data["content"]).decode("utf-8")

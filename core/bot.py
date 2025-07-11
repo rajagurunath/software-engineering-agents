@@ -7,7 +7,7 @@ from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
 from core.workflows import PRWorkflows
 from services.approval_system import ApprovalService
-from models.schemas import PRReviewRequest, PRCreationRequest
+from models.schemas import PRReviewRequest, PRCreationRequest, PRCommentHandlingRequest
 from config.settings import settings
 import re
 from utils.opik_tracer import trace
@@ -187,6 +187,69 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                 logger.error(f"Error in PR creation: {e}")
                 trace("slack.pr_creation_error", {"error": str(e)})
                 await say(f"❌ Error creating PR: {str(e)}")
+                
+        @self.app.message("handle comments")
+        async def handle_pr_comments(message, say, context):
+            """Handle PR comments requests"""
+            trace("slack.pr_comments_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                thread_ts = message.get('thread_ts', message['ts'])
+                channel_id = message['channel']
+                
+                # Extract PR URL from message
+                pr_url = self._extract_pr_url(text)
+                if not pr_url:
+                    await say("""
+🔧 **Handle Comments Command Format:**
+
+```
+handle comments for the pr url https://github.com/owner/repo/pull/123
+```
+
+This will:
+- Fetch all review comments from the PR
+- Analyze each comment and determine required changes
+- Make code modifications to address the feedback
+- Commit changes with descriptive messages
+- Provide a summary of all changes made
+                    """)
+                    return
+                
+                # Validate it's a PR URL
+                if '/pull/' not in pr_url:
+                    await say("❌ Please provide a valid GitHub PR URL (must contain '/pull/')")
+                    return
+                
+                # Create comment handling request
+                comment_request = PRCommentHandlingRequest(
+                    pr_url=pr_url,
+                    thread_id=thread_ts,
+                    user_id=user_id,
+                    channel_id=channel_id
+                )
+                
+                await say(f"🔧 Starting to handle PR comments for: {pr_url}\n⏳ This may take a few minutes...")
+                
+                # Start workflow
+                result = await self.workflows.pr_comment_handling_workflow(comment_request)
+                
+                # Send results
+                await self._send_comment_handling_results(say, result)
+                
+                trace("slack.pr_comments_complete", {
+                    "pr_url": pr_url,
+                    "comments_handled": result.comments_handled
+                })
+                
+            except Exception as e:
+                logger.error(f"Error in PR comment handling: {e}")
+                trace("slack.pr_comments_error", {"error": str(e)})
+                await say(f"❌ Error handling PR comments: {str(e)}")
                 
         @self.app.action("approve")
         async def handle_approval(ack, body, say):
@@ -400,6 +463,53 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                 "text": f"**Test Results**: {test_status}"
             }
         })
+        
+        await say(blocks=blocks)
+        
+    async def _send_comment_handling_results(self, say, result):
+        """Send PR comment handling results to Slack"""
+        status_emoji = "✅" if result.comments_handled > 0 else "ℹ️"
+        
+        blocks = [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"{status_emoji} **PR Comment Handling Complete**\n\n"
+                           f"**PR URL**: {result.pr_url}\n"
+                           f"**Comments Handled**: {result.comments_handled}\n"
+                           f"**Files Modified**: {len(result.files_modified)}\n"
+                           f"**Commits Made**: {len(result.commits_made)}"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"**Summary**:\n{result.summary}"
+                }
+            }
+        ]
+        
+        if result.files_modified:
+            files_text = "\n".join(f"• {file}" for file in result.files_modified[:10])
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"**Files Modified**:\n{files_text}"
+                }
+            })
+        
+        if result.unresolved_comments:
+            unresolved_text = "\n".join(f"• {comment.get('body', '')[:100]}..." for comment in result.unresolved_comments[:3])
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"**Unresolved Comments** ({len(result.unresolved_comments)}):\n{unresolved_text}"
+                }
+            })
         
         await say(blocks=blocks)
         

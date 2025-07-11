@@ -7,6 +7,7 @@ from models.schemas import (
 )
 from services.pr_reviewer import PRReviewService
 from services.pr_creator import PRCreatorService
+from services.pr_comment_handler import PRCommentHandler
 from services.approval_system import ApprovalService
 from config.settings import settings
 import logging
@@ -17,6 +18,7 @@ class PRWorkflows:
     def __init__(self):
         self.pr_reviewer = PRReviewService()
         self.pr_creator = PRCreatorService()
+        self.pr_comment_handler = PRCommentHandler()
         self.approval_service = ApprovalService()
         
     # DBOS.workflow()
@@ -47,6 +49,36 @@ class PRWorkflows:
             )
             raise
             
+    DBOS.workflow()
+    async def pr_comment_handling_workflow(self, request) -> Any:
+        """Handle PR comments workflow"""
+        from models.schemas import PRCommentHandlingRequest
+        
+        execution_id = f"comments-{request.thread_id}-{request.pr_url.split('/')[-1]}"
+        
+        # Update execution status
+        await self._update_execution_status(
+            execution_id, TaskStatus.IN_PROGRESS, request.dict()
+        )
+        
+        try:
+            # Handle PR comments
+            result = await self.pr_comment_handler.handle_pr_comments(request)
+            
+            # Update status to completed
+            await self._update_execution_status(
+                execution_id, TaskStatus.COMPLETED, result.dict()
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.exception("PR comment handling workflow failed")
+            await self._update_execution_status(
+                execution_id, TaskStatus.FAILED, {"error": str(e)}
+            )
+            raise
+    
     DBOS.workflow()
     async def pr_creation_workflow(self, request: PRCreationRequest) -> PRCreationResponse:
         """Complete PR creation workflow with approval"""
