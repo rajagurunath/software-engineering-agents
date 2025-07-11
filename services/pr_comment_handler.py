@@ -181,14 +181,36 @@ class PRCommentHandler:
         if comment.get("resolved", False):
             return False
             
-        # Look for actionable keywords
+        # Skip very short comments (likely just reactions)
+        if len(body.strip()) < 10:
+            return False
+            
+        # Skip common non-actionable phrases
+        non_actionable_phrases = [
+            "lgtm", "looks good", "approved", "nice work", "great job",
+            "thanks", "thank you", "+1", "👍", "✅"
+        ]
+        
+        for phrase in non_actionable_phrases:
+            if phrase in body:
+                return False
+        
+        # Look for actionable keywords (expanded list)
         actionable_keywords = [
             "fix", "change", "update", "modify", "refactor", "improve",
             "should", "could", "need", "please", "consider", "suggestion",
-            "bug", "issue", "problem", "error", "typo", "mistake"
+            "bug", "issue", "problem", "error", "typo", "mistake",
+            "why", "how", "what", "css", "style", "not working", "broken",
+            "missing", "add", "remove", "delete", "incorrect", "wrong"
         ]
         
-        return any(keyword in body for keyword in actionable_keywords)
+        # If comment contains actionable keywords, it's actionable
+        has_actionable_keywords = any(keyword in body for keyword in actionable_keywords)
+        
+        # If comment is longer than 20 characters and doesn't contain non-actionable phrases,
+        # consider it potentially actionable even without specific keywords
+        is_substantial_comment = len(body.strip()) > 20
+        
     
     def _group_comments_by_file(self, comments: List[Dict]) -> Dict[str, List[Dict]]:
         """Group comments by file path"""
