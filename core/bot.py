@@ -119,14 +119,24 @@ create pr --repo=https://github.com/owner/repo --branch=main --desc="Add dark th
 ```
 create pr --repo=https://github.com/owner/repo --branch=develop --linear=https://linear.app/team/issue/ABC-123
 ```
+
+**Note:** URLs should not have angle brackets < >
                     """)
                     return
+                
+                # Debug logging
+                logger.info(f"Parsed input: {parsed_input}")
                     
                 # Extract values from parsed input
                 repo_url = parsed_input['repo_url']
                 base_branch = parsed_input['base_branch']
                 description = parsed_input['description']
                 linear_url = parsed_input.get('linear_url')
+                
+                # Validate URL format
+                if not repo_url.startswith('https://github.com/'):
+                    await say(f"❌ Invalid GitHub URL format: {repo_url}\nPlease use: https://github.com/owner/repo")
+                    return
                 
                 # Handle Linear ticket if provided
                 linear_issue_id = None
@@ -219,8 +229,9 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
         oneline_match = re.search(oneline_pattern, text, re.IGNORECASE)
         
         if oneline_match:
+            repo_url = oneline_match.group(1).strip('<>')  # Remove angle brackets
             return {
-                'repo_url': oneline_match.group(1),
+                'repo_url': repo_url,
                 'base_branch': oneline_match.group(2),
                 'description': oneline_match.group(3),
             }
@@ -230,11 +241,12 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
         oneline_linear_match = re.search(oneline_linear_pattern, text, re.IGNORECASE)
         
         if oneline_linear_match:
+            repo_url = oneline_linear_match.group(1).strip('<>')  # Remove angle brackets
             return {
-                'repo_url': oneline_linear_match.group(1),
+                'repo_url': repo_url,
                 'base_branch': oneline_linear_match.group(2),
                 'description': 'From Linear ticket',
-                'linear_url': oneline_linear_match.group(3),
+                'linear_url': oneline_linear_match.group(3).strip('<>'),
             }
         
         # Try structured multi-line format
@@ -251,7 +263,7 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                 
             key, value = line.split(':', 1)
             key = key.strip().lower()
-            value = value.strip()
+            value = value.strip().strip('<>')  # Remove angle brackets and whitespace
             
             if key == 'repo':
                 parsed['repo_url'] = value
