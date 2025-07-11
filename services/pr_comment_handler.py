@@ -144,6 +144,7 @@ class PRCommentHandler:
         # Process review comments (line-specific)
         for comment in review_comments:
             if self._is_actionable_comment(comment):
+                logger.info(f"Adding actionable review comment from {comment['user']['login']}: {comment['body'][:50]}...")
                 actionable.append({
                     "type": "review",
                     "id": comment["id"],
@@ -158,6 +159,7 @@ class PRCommentHandler:
         # Process issue comments (general PR comments)
         for comment in issue_comments:
             if self._is_actionable_comment(comment):
+                logger.info(f"Adding actionable issue comment from {comment['user']['login']}: {comment['body'][:50]}...")
                 actionable.append({
                     "type": "issue",
                     "id": comment["id"],
