@@ -10,6 +10,7 @@ from core.integrations.github_client import GitHubClient
 from core.integrations.linear_client import LinearClient
 from core.integrations.llm_client import LLMClient
 from models.schemas import PRCreationRequest, PRCreationResponse
+from services.code_analyzer import CodeAnalyzer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class PRCreatorService:
         self.github_client = GitHubClient()
         self.linear_client = LinearClient()
         self.llm_client = LLMClient()
+        self.code_analyzer = CodeAnalyzer()
         
     async def create_pr(self, request: PRCreationRequest) -> PRCreationResponse:
         """Create PR in sandbox environment"""
@@ -60,14 +62,13 @@ class PRCreatorService:
             
             # Generate implementation plan
             implementation_plan = await self._generate_implementation_plan(
-                request.description, linear_context, repo_path
+                request, linear_context, repo_path
             )
             
             # Share plan to Slack if configured
             from config.settings import settings
             if settings.share_plan_to_slack and request.thread_id:
                 await self._post_plan_to_slack(request, implementation_plan)
-
 
             # Implement changes
             changes_made = await self._implement_changes(
@@ -147,41 +148,122 @@ class PRCreatorService:
         except Exception as e:
             logger.warning(f"Failed to post plan to Slack: {e}")
 
-    async def _generate_implementation_plan(self, description: str, linear_context: Optional[Dict], repo_path: str) -> Dict:
+    async def _generate_implementation_plan(self, request: PRCreationRequest, linear_context: Optional[Dict], repo_path: str) -> Dict:
         """Generate detailed implementation plan"""
-        # Analyze repository structure
-        repo_structure = self._analyze_repo_structure(repo_path)
+        trace("pr_creator.analyze_repo", {"repo_path": repo_path})
+        
+        # Perform comprehensive code analysis
+        repo_analysis = self.code_analyzer.analyze_repository(repo_path)
+        code_context = self.code_analyzer.get_code_context(repo_path)
+        
+        trace("pr_creator.repo_analysis", {
+            "primary_language": repo_analysis['primary_language'],
+            "frameworks": repo_analysis['frameworks'],
+            "file_count": repo_analysis['file_count']
+        })
 
+        # Build comprehensive context for LLM
         context = f"""
-        Task: {description}
-        Repository Structure: {repo_structure}
+        TASK: {request.description}
+        
+        REPOSITORY ANALYSIS:
+        {self._format_repo_analysis(repo_analysis)}
+        
+        CODE CONTEXT:
+        {code_context}
         """
         
         if linear_context:
-            context += f"Linear Context: {linear_context}\n"
+            context += f"\nLINEAR ISSUE CONTEXT:\n"
+            context += f"Title: {linear_context.get('title', '')}\n"
+            context += f"Description: {linear_context.get('description', '')}\n"
             
-        prompt = f"""
-        Create a detailed implementation plan for:
+        prompt = f"""You are a senior software engineer. Create a detailed implementation plan based on the repository analysis and task requirements.
         
         {context}
         
-        Provide:
-        1. Files to modify/create
-        2. Specific changes needed
-        3. Test cases to write
-        4. Dependencies to add
+        IMPORTANT REQUIREMENTS:
+        1. Use the CORRECT programming language and framework identified in the analysis
+        2. Follow the existing code patterns and structure
+        3. Respect the project's architecture and conventions
+        4. Only suggest changes that make sense for this technology stack
+        
+        Provide a JSON response with:
+        {{
+            "summary": "Brief description of the implementation approach",
+            "file_changes": [
+                {{
+                    "path": "relative/path/to/file",
+                    "type": "create|modify|delete",
+                    "content": "actual file content",
+                    "reasoning": "why this change is needed"
+                }}
+            ],
+            "test_files": [
+                {{
+                    "path": "path/to/test/file",
+                    "content": "test file content",
+                    "framework": "testing framework to use"
+                }}
+            ],
+            "dependencies": [
+                {{
+                    "name": "dependency-name",
+                    "version": "version",
+                    "type": "production|development"
+                }}
+            ]
+        }}
         """
         
+        trace("pr_creator.generate_plan", {"description": request.description})
         plan = await self.llm_client.generate_implementation_plan(prompt)
+        trace("pr_creator.plan_generated", {"files_to_change": len(plan.get("file_changes", []))})
+        
         return plan
+    
+    def _format_repo_analysis(self, analysis: Dict[str, Any]) -> str:
+        """Format repository analysis for LLM context."""
+        return f"""
+Primary Language: {analysis['primary_language']}
+All Languages: {', '.join(analysis['languages'].keys())}
+Frameworks: {', '.join(analysis['frameworks'])}
+Build Tools: {', '.join(analysis['build_tools'])}
+Test Frameworks: {', '.join(analysis['test_frameworks'])}
+Entry Points: {', '.join(analysis['entry_points'])}
+Total Files: {analysis['file_count']}
+Total Lines: {analysis['total_lines']}
+
+Dependencies:
+{self._format_dependencies(analysis['dependencies'])}
+        """.strip()
+    
+    def _format_dependencies(self, dependencies: Dict[str, Any]) -> str:
+        """Format dependencies for display."""
+        formatted = []
+        for dep_type, deps in dependencies.items():
+            if isinstance(deps, dict):
+                for category, dep_list in deps.items():
+                    if dep_list:
+                        formatted.append(f"{dep_type} {category}: {', '.join(list(dep_list.keys())[:5])}")
+            elif isinstance(deps, list):
+                formatted.append(f"{dep_type}: {', '.join(deps[:5])}")
+        return '\n'.join(formatted) if formatted else "No dependencies found"
         
     async def _implement_changes(self, sandbox, plan: Dict, repo_path: str) -> Dict[str, Any]:
         """Implement the planned changes"""
+        trace("pr_creator.implement_changes", {"plan_files": len(plan.get("file_changes", []))})
+        
         changes_made = {
             "files_changed": [],
             "files_created": [],
             "tests_added": []
         }
+        
+        # Install dependencies first if needed
+        dependencies = plan.get("dependencies", [])
+        if dependencies:
+            await self._install_dependencies(sandbox, dependencies, repo_path)
         
         # Process each file change
         for file_change in plan.get("file_changes", []):
@@ -213,6 +295,39 @@ class PRCreatorService:
             changes_made["tests_added"].append(test_path)
             
         return changes_made
+    
+    async def _install_dependencies(self, sandbox, dependencies: List[Dict], repo_path: str) -> None:
+        """Install required dependencies."""
+        trace("pr_creator.install_dependencies", {"count": len(dependencies)})
+        
+        # Group dependencies by type
+        npm_deps = []
+        pip_deps = []
+        
+        for dep in dependencies:
+            name = dep.get("name", "")
+            version = dep.get("version", "")
+            dep_string = f"{name}@{version}" if version else name
+            
+            # Determine package manager based on repo structure
+            if (Path(repo_path) / "package.json").exists():
+                npm_deps.append(dep_string)
+            elif (Path(repo_path) / "requirements.txt").exists():
+                pip_deps.append(dep_string)
+        
+        # Install npm dependencies
+        if npm_deps:
+            cmd = f"npm install {' '.join(npm_deps)}"
+            result = sandbox.run_command(cmd)
+            if result.returncode != 0:
+                logger.warning(f"Failed to install npm dependencies: {result.stderr}")
+        
+        # Install pip dependencies
+        if pip_deps:
+            cmd = f"pip install {' '.join(pip_deps)}"
+            result = sandbox.run_command(cmd)
+            if result.returncode != 0:
+                logger.warning(f"Failed to install pip dependencies: {result.stderr}")
         
     def _tests_passed(self, test_results: Dict[str, Any]) -> bool:
         """Check if tests passed"""
@@ -259,26 +374,6 @@ class PRCreatorService:
         owner = parts[-2]
         repo = parts[-1]
         return owner, repo
-        
-    def _analyze_repo_structure(self, repo_path: str) -> Dict[str, Any]:
-        """Analyze repository structure"""
-        import os
-        
-        structure = {}
-        for root, dirs, files in os.walk(repo_path):
-            # Skip hidden directories
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
-            
-            rel_path = os.path.relpath(root, repo_path)
-            if rel_path == '.':
-                rel_path = ''
-                
-            structure[rel_path] = {
-                "directories": dirs,
-                "files": files
-            }
-            
-        return structure
         
     def _generate_pr_body(self, request: PRCreationRequest,
                          linear_context: Optional[Dict],

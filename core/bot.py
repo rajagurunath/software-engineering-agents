@@ -10,6 +10,7 @@ from services.approval_system import ApprovalService
 from models.schemas import PRReviewRequest, PRCreationRequest
 from config.settings import settings
 import re
+from utils.opik_tracer import trace
 # from slack_bolt.adapter.socket_mode import SocketModeHandler
 import asyncio
 
@@ -32,6 +33,10 @@ class SlackBotHandler:
         @self.app.message("review pr")
         async def handle_pr_review(message, say, context):
             """Handle PR review requests"""
+            trace("slack.pr_review_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]  # First 200 chars
+            })
             try:
                 text = message['text']
                 user_id = message['user']
@@ -62,13 +67,23 @@ class SlackBotHandler:
                 # Send results
                 await self._send_review_results(say, result)
                 
+                trace("slack.pr_review_complete", {
+                    "pr_url": pr_url,
+                    "quality_score": result.code_quality_score
+                })
+                
             except Exception as e:
                 logger.error(f"Error in PR review: {e}")
+                trace("slack.pr_review_error", {"error": str(e)})
                 await say(f"❌ Error reviewing PR: {str(e)}")
                 
         @self.app.message("create pr")
         async def handle_pr_creation(message, say, context):
             """Handle PR creation requests"""
+            trace("slack.pr_creation_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
             try:
                 text = message['text']
                 user_id = message['user']
@@ -107,8 +122,14 @@ class SlackBotHandler:
                 # Send results
                 await self._send_creation_results(say, result)
                 
+                trace("slack.pr_creation_complete", {
+                    "pr_url": result.pr_url,
+                    "files_changed": len(result.files_changed)
+                })
+                
             except Exception as e:
                 logger.error(f"Error in PR creation: {e}")
+                trace("slack.pr_creation_error", {"error": str(e)})
                 await say(f"❌ Error creating PR: {str(e)}")
                 
         @self.app.action("approve")
