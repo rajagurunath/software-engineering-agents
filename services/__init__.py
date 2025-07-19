@@ -1,1 +1,1 @@
-from .code_analyzer import CodeAnalyzer
+from .developer.code_analyzer import CodeAnalyzer

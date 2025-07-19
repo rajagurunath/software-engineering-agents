@@ -5,10 +5,10 @@ from models.schemas import (
     PRCreationRequest, PRCreationResponse,
     WorkflowExecution, TaskStatus, ApprovalRequest
 )
-from services.pr_reviewer import PRReviewService
-from services.pr_creator import PRCreatorService
-from services.pr_comment_handler import PRCommentHandler
-from services.approval_system import ApprovalService
+from services.developer.pr_reviewer import PRReviewService
+from services.developer.pr_creator import PRCreatorService
+from services.developer.pr_comment_handler import PRCommentHandler
+from services.developer.approval_system import ApprovalService
 from config.settings import settings
 import logging
 

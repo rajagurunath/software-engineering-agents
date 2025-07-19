@@ -10,7 +10,7 @@ from core.integrations.github_client import GitHubClient
 from core.integrations.linear_client import LinearClient
 from core.integrations.llm_client import LLMClient
 from models.schemas import PRCreationRequest, PRCreationResponse
-from services.code_analyzer import CodeAnalyzer
+from services.developer.code_analyzer import CodeAnalyzer
 import logging
 
 logger = logging.getLogger(__name__)

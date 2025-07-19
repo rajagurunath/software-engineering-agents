@@ -6,12 +6,24 @@ from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
 from core.workflows import PRWorkflows
-from services.approval_system import ApprovalService
+from services.developer.approval_system import ApprovalService
 from models.schemas import PRReviewRequest, PRCreationRequest, PRCommentHandlingRequest
 from config.settings import settings
 import re
 from utils.opik_tracer import trace
 import asyncio
+import plotly.io as pio
+import plotly.graph_objects as go
+import tempfile
+import os
+import json
+
+
+def save_plotly_image_from_json(plotly_json: str) -> str:
+    fig = pio.from_json(plotly_json)
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
+        fig.write_image(tmpfile.name)
+        return tmpfile.name
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +33,16 @@ class SlackBotHandler:
             token=settings.slack_bot_token,
             signing_secret=settings.slack_signing_secret
         )
+        # self.sql_app = AsyncApp(
+        #     token=settings.slack_sql_bot_token,
+        #     signing_secret=settings.slack_sql_signing_secret
+        # )
         self.workflows = PRWorkflows()
         self.approval_service = ApprovalService()
         
         self._register_handlers()
-        
+    
+
     def _register_handlers(self):
         """Register all Slack event handlers"""
         
@@ -75,7 +92,73 @@ class SlackBotHandler:
                 logger.error(f"Error in PR review: {e}")
                 trace("slack.pr_review_error", {"error": str(e)})
                 await say(f"❌ Error reviewing PR: {str(e)}")
-                
+        
+        # @self.app.message("sql bot")
+        # async def handle_sql_bot(message, say, context):
+        #     """Handle SQL bot requests"""
+        #     trace("slack.sql_bot_request", {
+        #         "user_id": message['user'],
+        #         "text": message['text'][:200]
+        #     })
+        #     await say("Hello, I am the SQL bot. How can I help you today?")
+        #     try:
+        #         text = message['text']
+        #         user_id = message['user']
+        #         thread_ts = message.get('thread_ts', message['ts'])
+        #         import requests
+        #         response = requests.post(settings.sql_bot_url, json={"query": text,"top_k": 5})
+        #         response_json = response.json()
+        #         print(response_json)
+        #         await say(response_json["data"])
+        #     except Exception as e:
+        #         logger.error(f"Error in SQL bot: {e}")
+        @self.app.message("sql bot")
+        async def handle_sql_bot(message, say, context):
+            trace("slack.sql_bot_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            await say("Hello, I am the SQL bot. How can I help you today?")
+            try:
+                text = message['text']
+                user_id = message['user']
+                thread_ts = message.get('thread_ts', message['ts'])
+                channel = message['channel']
+                import requests
+                response = requests.post(settings.sql_bot_url, json={"query": text, "top_k": 5})
+                response_json = response.json()
+
+                # Send the data as a formatted message
+                data = response_json.get("data")
+                if data is not None:
+                    # Format as pretty JSON for Slack
+                    formatted_data = f"```{json.dumps(data, indent=2)}```"
+                    await say(formatted_data)
+
+                # Send the plotly chart if present
+                plotly_json = response_json.get("plotly_json")
+                if plotly_json:
+                    image_path = save_plotly_image_from_json(plotly_json)
+                    try:
+                        await self.app.client.files_upload_v2(
+                            channel=channel,
+                            thread_ts=thread_ts,
+                            file=image_path,
+                            title="Chart"
+                        )
+                    finally:
+                        os.remove(image_path)
+
+                # Optionally, send follow-up questions if present
+                followups = response_json.get("followup_questions")
+                if followups:
+                    if isinstance(followups, list):
+                        followup_text = "*Follow-up questions you can ask:*\n" + "\n".join(f"- {q}" for q in followups if q)
+                        await say(followup_text)
+
+            except Exception as e:
+                logger.error(f"Error in SQL bot: {e}")
+
         @self.app.message("create pr")
         async def handle_pr_creation(message, say, context):
             """Handle PR creation requests"""
@@ -518,4 +601,9 @@ This will:
         logger.info("Starting Slack bot...")
         
         handler = AsyncSocketModeHandler(self.app, settings.slack_app_token)
+        # sql_handler = AsyncSocketModeHandler(self.sql_app, settings.slack_sql_app_token)
+        # await asyncio.gather(
+        #     handler.start_async(),
+        #     sql_handler.start_async()
+        # )
         await handler.start_async()
