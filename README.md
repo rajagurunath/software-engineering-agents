@@ -51,16 +51,15 @@ With the help of **io.net io intelligence**, you can access open-source models a
 ### Agent Coordination Diagram
 ```mermaid
 graph TD
-    Architect[Software Architect Agent (Master)]
-    Junior[Junior Engineering Agent]
-    Senior[Senior Engineering Agent]
-    Analyst[Data Analyst Agent]
-    Sentry[Sentry Agent]
-
-    Architect --> Junior
-    Architect --> Senior
-    Architect --> Analyst
-    Architect --> Sentry
+Architect["Software Architect Agent (Master)"]
+Junior["Junior Engineering Agent"]
+Senior["Senior Engineering Agent"]
+Analyst["Data Analyst Agent"]
+Sentry["Sentry Agent"]
+Architect --> Junior
+Architect --> Senior
+Architect --> Analyst
+Architect --> Sentry
 ```
 *The Software Architect Agent acts as the master, coordinating all other agents.*
 
@@ -70,13 +69,13 @@ graph TD
 
 ```mermaid
 flowchart TD
-    A[Data Preparation] --> B[Web & Data Schema Scraping]
-    B --> C[Indexing & Embedding]
-    C --> D[Deploy Agents (Slack Bots)]
-    D --> E[Monitor & Trace Performance]
-    E --> F[Collect & Annotate Prompts]
-    F --> G[Fine-tune RAG Dataset / Model]
-    G --> D
+A["Data Preparation"] --> B["Web & Data Schema Scraping"]
+B --> C["Indexing & Embedding"]
+C --> D["Deploy Agents (Slack Bots)"]
+D --> E["Monitor & Trace Performance"]
+E --> F["Collect & Annotate Prompts"]
+F --> G["Fine-tune RAG Dataset / Model"]
+G --> D
 ```
 *The workflow is cyclical, enabling continuous self-improvement of the agent ecosystem.*
 
@@ -113,7 +112,6 @@ Currently, all these agents are accessible from **Slack**. By using these agents
    - `rag/indexer/embedder.py` embeds the data into the vector store and can be used to test the embedding of JSON files standalone.
 
 ---
-
 ## Deploy Agents Team
 - Create a Slack bot and provide the API key for each bot.
 
