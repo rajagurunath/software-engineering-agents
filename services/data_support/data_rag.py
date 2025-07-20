@@ -5,7 +5,6 @@ from vanna.qdrant import Qdrant_VectorStore
 from langchain_openai import ChatOpenAI
 
 
-
 class IOIntelligence(VannaBase):
   def __init__(self, config={}):
       
