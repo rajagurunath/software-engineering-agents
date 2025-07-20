@@ -9,7 +9,8 @@ from core.workflows import PRWorkflows
 from services.developer.approval_system import ApprovalService
 from models.schemas import PRReviewRequest, PRCreationRequest, PRCommentHandlingRequest
 from config.settings import settings
-from services.architect.slack_integration import register_architect_handlers
+from services.architect.service import ArchitectService
+from services.architect.models import ResearchType
 import re
 from utils.opik_tracer import trace
 import asyncio
@@ -41,10 +42,10 @@ class SlackBotHandler:
         self.workflows = PRWorkflows()
         self.approval_service = ApprovalService()
         
-        self._register_handlers()
+        # Initialize architect service
+        self.architect_service = ArchitectService()
         
-        # Register architect agent handlers
-        register_architect_handlers(self.app)
+        self._register_handlers()
     
 
     def _register_handlers(self):
@@ -162,6 +163,187 @@ class SlackBotHandler:
 
             except Exception as e:
                 logger.error(f"Error in SQL bot: {e}")
+
+        @self.app.message("ask architect")
+        async def handle_architect_request(message, say, context):
+            """Handle architect research requests"""
+            trace("slack.architect_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                thread_ts = message.get('thread_ts', message['ts'])
+                channel = message['channel']
+                
+                # Parse architect command
+                research_params = self._parse_architect_command(text)
+                if not research_params:
+                    await say(self._get_architect_help_message())
+                    return
+                
+                # Send initial response
+                await say(f"🏗️ Starting deep research on: *{research_params['query']}*\n"
+                         f"Research type: {research_params.get('type', 'auto-detected')}\n"
+                         f"This may take a few minutes...")
+                
+                # Conduct research
+                result = await self.architect_service.conduct_research(
+                    query=research_params['query'],
+                    user_id=user_id,
+                    research_type=research_params.get('type'),
+                    thread_id=thread_ts,
+                    channel_id=channel,
+                    include_visualizations=research_params.get('include_viz', True)
+                )
+                
+                # Send results to Slack
+                await self._send_architect_results(say, result, channel, thread_ts)
+                
+                trace("slack.architect_complete", {
+                    "research_id": result.research_id,
+                    "findings_count": len(result.detailed_findings)
+                })
+                
+            except Exception as e:
+                logger.error(f"Architect request failed: {e}")
+                trace("slack.architect_error", {"error": str(e)})
+                await say(f"❌ Research failed: {str(e)}")
+
+        @self.app.message("quick data")
+        async def handle_quick_data(message, say, context):
+            """Handle quick data queries"""
+            trace("slack.quick_data_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                thread_ts = message.get('thread_ts', message['ts'])
+                channel = message['channel']
+                
+                # Extract query (remove command prefix)
+                query = text.replace('quick data', '').strip()
+                if not query:
+                    await say("Please provide a data query. Example: `quick data How many devices are online?`")
+                    return
+                
+                await say(f"📊 Analyzing data for: *{query}*")
+                
+                result = await self.architect_service.quick_data_analysis(query, user_id)
+                
+                if result["success"]:
+                    response = f"**Data Analysis Result:**\n{result['answer']}"
+                    await say(response)
+                    
+                    # Handle Plotly visualization
+                    if result.get("plotly_json"):
+                        image_path = save_plotly_image_from_json(result["plotly_json"])
+                        try:
+                            await self.app.client.files_upload_v2(
+                                channel=channel,
+                                thread_ts=thread_ts,
+                                file=image_path,
+                                title="Data Visualization"
+                            )
+                        finally:
+                            os.remove(image_path)
+                else:
+                    await say(f"❌ Data query failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                logger.error(f"Quick data query failed: {e}")
+                await say(f"❌ Data query failed: {str(e)}")
+
+        @self.app.message("quick docs")
+        async def handle_quick_docs(message, say, context):
+            """Handle quick documentation searches"""
+            trace("slack.quick_docs_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                
+                # Extract query (remove command prefix)
+                query = text.replace('quick docs', '').strip()
+                if not query:
+                    await say("Please provide a documentation query. Example: `quick docs How to stake IO tokens?`")
+                    return
+                
+                await say(f"📚 Searching documentation for: *{query}*")
+                
+                result = await self.architect_service.quick_docs_search(query, user_id)
+                
+                if result["success"]:
+                    response = f"**Documentation Search Result:**\n{result['answer']}"
+                    
+                    # Add relevant links if available
+                    if result.get("relevant_links"):
+                        response += "\n\n**Relevant Links:**\n"
+                        for link in result["relevant_links"][:3]:
+                            response += f"• {link}\n"
+                    
+                    # Add followup questions if available
+                    if result.get("followup_questions"):
+                        response += "\n**Related Questions:**\n"
+                        for question in result["followup_questions"][:3]:
+                            response += f"• {question}\n"
+                    
+                    await say(response)
+                else:
+                    await say(f"❌ Documentation search failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                logger.error(f"Quick docs search failed: {e}")
+                await say(f"❌ Documentation search failed: {str(e)}")
+
+        @self.app.message("quick pr")
+        async def handle_quick_pr_analysis(message, say, context):
+            """Handle quick PR analysis requests"""
+            trace("slack.quick_pr_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                
+                # Extract PR URL
+                pr_url = self._extract_pr_url(text)
+                if not pr_url:
+                    await say("Please provide a valid GitHub PR URL. Example: `quick pr https://github.com/owner/repo/pull/123`")
+                    return
+                
+                await say(f"🔍 Analyzing PR: {pr_url}")
+                
+                result = await self.architect_service.analyze_pr(pr_url, user_id)
+                
+                if result["success"]:
+                    response = f"""**PR Analysis Complete:**
+
+**Quality Score:** {result['quality_score']}/10
+**CI Status:** {result['ci_status']}
+**Bugs Found:** {len(result['bugs_found'])}
+
+**Summary:**
+{result['summary']}
+
+**Recommendations:**
+"""
+                    for rec in result['recommendations'][:5]:
+                        response += f"• {rec}\n"
+                    
+                    await say(response)
+                else:
+                    await say(f"❌ PR analysis failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                logger.error(f"PR analysis failed: {e}")
+                await say(f"❌ PR analysis failed: {str(e)}")
 
         @self.app.message("create pr")
         async def handle_pr_creation(message, say, context):
@@ -599,6 +781,142 @@ This will:
             })
         
         await say(blocks=blocks)
+        
+    def _parse_architect_command(self, text: str) -> Dict[str, str]:
+        """Parse architect command from Slack message"""
+        text = text.strip()
+        
+        # Check for architect command
+        if not text.startswith('ask architect'):
+            return None
+        
+        # Remove 'ask architect' prefix
+        query_text = text[12:].strip()
+        
+        if not query_text:
+            return None
+        
+        # Parse optional parameters
+        params = {
+            'query': query_text,
+            'type': None,
+            'include_viz': True
+        }
+        
+        # Check for research type specification
+        if '--type=' in query_text:
+            parts = query_text.split('--type=')
+            params['query'] = parts[0].strip()
+            type_part = parts[1].split()[0]
+            
+            try:
+                params['type'] = ResearchType(type_part)
+            except ValueError:
+                pass  # Invalid type, will auto-detect
+        
+        # Check for visualization flag
+        if '--no-viz' in query_text:
+            params['include_viz'] = False
+            params['query'] = params['query'].replace('--no-viz', '').strip()
+        
+        return params
+
+    async def _send_architect_results(self, say, result, channel: str, thread_ts: str) -> None:
+        """Send comprehensive research results to Slack"""
+        try:
+            # Send executive summary
+            summary_blocks = [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"## 🏗️ Research Complete\n\n"
+                               f"**Query**: {result.original_query}\n"
+                               f"**Type**: {result.research_type.value}\n"
+                               f"**Duration**: {result.total_duration_seconds:.1f}s\n"
+                               f"**Steps**: {len(result.detailed_findings)}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"**Executive Summary**:\n{result.executive_summary}"
+                    }
+                }
+            ]
+            
+            await say(blocks=summary_blocks)
+            
+            # Send recommendations
+            if result.recommendations:
+                rec_text = "\n".join(f"• {rec}" for rec in result.recommendations[:5])
+                rec_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"**💡 Recommendations**:\n{rec_text}"
+                        }
+                    }
+                ]
+                await say(blocks=rec_blocks)
+            
+            # Upload visualizations
+            for viz in result.data_visualizations:
+                if viz.get("plotly_json"):
+                    image_path = save_plotly_image_from_json(viz["plotly_json"])
+                    if image_path:
+                        try:
+                            await self.app.client.files_upload_v2(
+                                channel=channel,
+                                thread_ts=thread_ts,
+                                file=image_path,
+                                title=viz.get("title", "Data Visualization")
+                            )
+                        finally:
+                            os.remove(image_path)
+            
+            # Upload HTML report if available
+            if result.html_report_path:
+                try:
+                    await self.app.client.files_upload_v2(
+                        channel=channel,
+                        thread_ts=thread_ts,
+                        file=result.html_report_path,
+                        title=f"Research Report - {result.original_query[:30]}",
+                        filetype="html"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to upload HTML report: {e}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send research results: {e}")
+            await say(f"✅ Research completed, but failed to send full results: {str(e)}")
+
+    def _get_architect_help_message(self) -> str:
+        """Get help message for architect commands"""
+        return """🏗️ **Architect Agent Commands:**
+
+**Deep Research:**
+• `ask architect <your question>` - Comprehensive multi-tool research
+• `ask architect <question> --type=data_analysis` - Focus on data analysis
+• `ask architect <question> --type=code_review` - Focus on code analysis
+• `ask architect <question> --type=documentation` - Focus on docs
+• `ask architect <question> --no-viz` - Skip visualizations
+
+**Quick Queries:**
+• `quick data <question>` - Quick data analysis with charts
+• `quick docs <question>` - Quick documentation search
+• `quick pr <github_url>` - Quick PR analysis
+
+**Examples:**
+• `ask architect How is the io.net network performing this month?`
+• `quick data How many devices earned block rewards today?`
+• `quick docs How to set up staking?`
+• `quick pr https://github.com/owner/repo/pull/123`
+
+The Architect Agent combines coding tools, data analysis, and documentation search to provide comprehensive insights about io.net."""
         
     async def start(self):
         """Start the Slack bot"""
