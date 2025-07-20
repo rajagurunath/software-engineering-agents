@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Qdrant configuration
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333") # Allow overriding via env var
-COLLECTION_NAME = "io_net_docs_json4" # Consider a new collection name for JSON data
+COLLECTION_NAME = "io_net_docs" # Consider a new collection name for JSON data
 
 def get_vector_size(model_name: str) -> int:
     """Gets the embedding dimension size for a Sentence Transformer model."""
