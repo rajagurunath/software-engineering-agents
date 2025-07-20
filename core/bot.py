@@ -117,52 +117,52 @@ class SlackBotHandler:
         #         await say(response_json["data"])
         #     except Exception as e:
         #         logger.error(f"Error in SQL bot: {e}")
-        @self.app.message("sql bot")
-        async def handle_sql_bot(message, say, context):
-            trace("slack.sql_bot_request", {
-                "user_id": message['user'],
-                "text": message['text'][:200]
-            })
-            await say("Hello, I am the SQL bot. How can I help you today?")
-            try:
-                text = message['text']
-                user_id = message['user']
-                thread_ts = message.get('thread_ts', message['ts'])
-                channel = message['channel']
-                import requests
-                response = requests.post(settings.sql_bot_url, json={"query": text, "top_k": 5})
-                response_json = response.json()
+        # @self.app.message("sql bot")
+        # async def handle_sql_bot(message, say, context):
+        #     trace("slack.sql_bot_request", {
+        #         "user_id": message['user'],
+        #         "text": message['text'][:200]
+        #     })
+        #     await say("Hello, I am the SQL bot. How can I help you today?")
+        #     try:
+        #         text = message['text']
+        #         user_id = message['user']
+        #         thread_ts = message.get('thread_ts', message['ts'])
+        #         channel = message['channel']
+        #         import requests
+        #         response = requests.post(settings.sql_bot_url, json={"query": text, "top_k": 5})
+        #         response_json = response.json()
 
-                # Send the data as a formatted message
-                data = response_json.get("data")
-                if data is not None:
-                    # Format as pretty JSON for Slack
-                    formatted_data = f"```{json.dumps(data, indent=2)}```"
-                    await say(formatted_data)
+        #         # Send the data as a formatted message
+        #         data = response_json.get("data")
+        #         if data is not None:
+        #             # Format as pretty JSON for Slack
+        #             formatted_data = f"```{json.dumps(data, indent=2)}```"
+        #             await say(formatted_data)
 
-                # Send the plotly chart if present
-                plotly_json = response_json.get("plotly_json")
-                if plotly_json:
-                    image_path = save_plotly_image_from_json(plotly_json)
-                    try:
-                        await self.app.client.files_upload_v2(
-                            channel=channel,
-                            thread_ts=thread_ts,
-                            file=image_path,
-                            title="Chart"
-                        )
-                    finally:
-                        os.remove(image_path)
+        #         # Send the plotly chart if present
+        #         plotly_json = response_json.get("plotly_json")
+        #         if plotly_json:
+        #             image_path = save_plotly_image_from_json(plotly_json)
+        #             try:
+        #                 await self.app.client.files_upload_v2(
+        #                     channel=channel,
+        #                     thread_ts=thread_ts,
+        #                     file=image_path,
+        #                     title="Chart"
+        #                 )
+        #             finally:
+        #                 os.remove(image_path)
 
-                # Optionally, send follow-up questions if present
-                followups = response_json.get("followup_questions")
-                if followups:
-                    if isinstance(followups, list):
-                        followup_text = "*Follow-up questions you can ask:*\n" + "\n".join(f"- {q}" for q in followups if q)
-                        await say(followup_text)
+        #         # Optionally, send follow-up questions if present
+        #         followups = response_json.get("followup_questions")
+        #         if followups:
+        #             if isinstance(followups, list):
+        #                 followup_text = "*Follow-up questions you can ask:*\n" + "\n".join(f"- {q}" for q in followups if q)
+        #                 await say(followup_text)
 
-            except Exception as e:
-                logger.error(f"Error in SQL bot: {e}")
+        #     except Exception as e:
+        #         logger.error(f"Error in SQL bot: {e}")
 
         @self.app.message("ask architect")
         async def handle_architect_request(message, say, context):
@@ -211,7 +211,7 @@ class SlackBotHandler:
                 trace("slack.architect_error", {"error": str(e)})
                 await say(f"❌ Research failed: {str(e)}")
 
-        @self.app.message("quick data")
+        @self.app.message("bi-analyst")
         async def handle_quick_data(message, say, context):
             """Handle quick data queries"""
             trace("slack.quick_data_request", {
@@ -301,49 +301,49 @@ class SlackBotHandler:
                 logger.error(f"Quick docs search failed: {e}")
                 await say(f"❌ Documentation search failed: {str(e)}")
 
-        @self.app.message("quick pr")
-        async def handle_quick_pr_analysis(message, say, context):
-            """Handle quick PR analysis requests"""
-            trace("slack.quick_pr_request", {
-                "user_id": message['user'],
-                "text": message['text'][:200]
-            })
-            try:
-                text = message['text']
-                user_id = message['user']
+#         @self.app.message("quick pr")
+#         async def handle_quick_pr_analysis(message, say, context):
+#             """Handle quick PR analysis requests"""
+#             trace("slack.quick_pr_request", {
+#                 "user_id": message['user'],
+#                 "text": message['text'][:200]
+#             })
+#             try:
+#                 text = message['text']
+#                 user_id = message['user']
                 
-                # Extract PR URL
-                pr_url = self._extract_pr_url(text)
-                if not pr_url:
-                    await say("Please provide a valid GitHub PR URL. Example: `quick pr https://github.com/owner/repo/pull/123`")
-                    return
+#                 # Extract PR URL
+#                 pr_url = self._extract_pr_url(text)
+#                 if not pr_url:
+#                     await say("Please provide a valid GitHub PR URL. Example: `quick pr https://github.com/owner/repo/pull/123`")
+#                     return
                 
-                await say(f"🔍 Analyzing PR: {pr_url}")
+#                 await say(f"🔍 Analyzing PR: {pr_url}")
                 
-                result = await self.architect_service.analyze_pr(pr_url, user_id)
+#                 result = await self.architect_service.analyze_pr(pr_url, user_id)
                 
-                if result["success"]:
-                    response = f"""**PR Analysis Complete:**
+#                 if result["success"]:
+#                     response = f"""**PR Analysis Complete:**
 
-**Quality Score:** {result['quality_score']}/10
-**CI Status:** {result['ci_status']}
-**Bugs Found:** {len(result['bugs_found'])}
+# **Quality Score:** {result['quality_score']}/10
+# **CI Status:** {result['ci_status']}
+# **Bugs Found:** {len(result['bugs_found'])}
 
-**Summary:**
-{result['summary']}
+# **Summary:**
+# {result['summary']}
 
-**Recommendations:**
-"""
-                    for rec in result['recommendations'][:5]:
-                        response += f"• {rec}\n"
+# **Recommendations:**
+# """
+#                     for rec in result['recommendations'][:5]:
+#                         response += f"• {rec}\n"
                     
-                    await say(response)
-                else:
-                    await say(f"❌ PR analysis failed: {result.get('error', 'Unknown error')}")
+#                     await say(response)
+#                 else:
+#                     await say(f"❌ PR analysis failed: {result.get('error', 'Unknown error')}")
                     
-            except Exception as e:
-                logger.error(f"PR analysis failed: {e}")
-                await say(f"❌ PR analysis failed: {str(e)}")
+#             except Exception as e:
+#                 logger.error(f"PR analysis failed: {e}")
+#                 await say(f"❌ PR analysis failed: {str(e)}")
 
         @self.app.message("create pr")
         async def handle_pr_creation(message, say, context):
