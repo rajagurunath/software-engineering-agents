@@ -9,7 +9,7 @@ from core.sandbox import SandboxManager
 from core.integrations.github_client import GitHubClient
 from core.integrations.llm_client import LLMClient
 from models.schemas import PRCommentHandlingRequest, PRCommentHandlingResponse
-from services.code_analyzer import CodeAnalyzer
+from services.developer.code_analyzer import CodeAnalyzer
 import logging
 
 logger = logging.getLogger(__name__)

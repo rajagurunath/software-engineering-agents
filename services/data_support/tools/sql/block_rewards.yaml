@@ -1,0 +1,11 @@
+find_no_failed_blocks:
+  description: |
+    This query retrieves the number of blocks that have failed to be processed.
+    It counts the blocks where the status is 'failed' and groups them by the block number.
+  query: |
+    SELECT COUNT(*) AS no_failed_blocks
+    FROM block_rewards.block_workers
+    WHERE status = 'failed'
+  output: 
+    type: integer
+    description: The total number of blocks that have failed to be processed.
