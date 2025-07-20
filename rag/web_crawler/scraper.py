@@ -10,7 +10,7 @@ from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, BestFirstCrawlingStrate
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the output directory at the module level so it can be imported
-MARKDOWN_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'markdown4')
+MARKDOWN_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'docs_markdown')
 
 async def scrape_website_with_crawl4ai_lib(start_url: str, output_dir: str):
     """

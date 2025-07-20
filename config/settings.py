@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     
     # LLM Configuration
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")
+    iointelligence_api_key: str = Field(..., env="IOINTELLIGENCE_API_KEY")
     openai_base_url: str = Field("https://api.openai.com/v1", env="OPENAI_BASE_URL")
     io_model:str = Field("deepseek-ai/DeepSeek-R1-0528", env="IO_MODEL")
     
@@ -43,8 +44,13 @@ class Settings(BaseSettings):
     opik_endpoint: str = Field("http://localhost:8123/trace", env="OPIK_ENDPOINT")
 
     # Rag configuration
-    rag_base_url: str = Field("https://api.intelligence.io.solutions", env="RAG_BASE_URL")
-    
+    rag_base_url: str = "https://api.intelligence-dev.io.solutions/api/r2r/v3" # Field("https://api.intelligence-dev.io.solutions/api/r2r/v3", env="RAG_BASE_URL")
+    superset_api_url: str = Field("http://localhost:8088", env="SUPERSET_API_URL")
+    preset_api_url: str = Field("http://localhost:8088", env="PRESET_API_URL")
+    preset_secret: str = Field("preset_api_key", env="PRESET_SECRET")
+    preset_name: str = Field("preset", env="PRESET_NAME")
+    qdrant_url: str = Field("http://localhost:6333", env="QDRANT_URL")
+
     class Config:
         env_file = ".env"
 
