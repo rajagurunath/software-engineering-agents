@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     qdrant_embedding_model_name: str = Field("sentence-transformers/all-mpnet-base-v2", env="QDRANT_EMBEDDING_MODEL_NAME")
     qdrant_top_k: int = Field(5, env="QDRANT_TOP_K")
 
+    # Sentry Configuration
+    sentry_auth_token: str = Field(..., env="SENTRY_AUTH_TOKEN")
+    sentry_org_slug: str = Field(..., env="SENTRY_ORG_SLUG")
+    sentry_project_slug: str = Field(..., env="SENTRY_PROJECT_SLUG")
+
     class Config:
         env_file = ".env"
 
