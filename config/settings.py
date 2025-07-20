@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     preset_secret: str = Field("preset_api_key", env="PRESET_SECRET")
     preset_name: str = Field("preset", env="PRESET_NAME")
     qdrant_url: str = Field("http://localhost:6333", env="QDRANT_URL")
+    qdrant_collection_name: str = Field("io_net_docs", env="QDRANT_COLLECTION_NAME")
+    qdrant_embedding_model_name: str = Field("sentence-transformers/all-mpnet-base-v2", env="QDRANT_EMBEDDING_MODEL_NAME")
+    qdrant_top_k: int = Field(5, env="QDRANT_TOP_K")
 
     class Config:
         env_file = ".env"

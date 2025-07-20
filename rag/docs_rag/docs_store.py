@@ -38,8 +38,8 @@ class RagAssistant:
         
         # Configuration from settings with fallbacks
         self.retrieval_backend = retrieval_backend
-        self.embedding_model_name = embedding_model_name or "sentence-transformers/all-mpnet-base-v2"
-        self.collection_name = collection_name or "io_net_docs_json4"
+        self.embedding_model_name = embedding_model_name or settings.qdrant_embedding_model_name
+        self.collection_name = collection_name or settings.qdrant_collection_name
         self.llm_model_name = llm_model_name or settings.io_model
         self.top_k = top_k
         
@@ -124,7 +124,7 @@ class RagAssistant:
                 model=self.llm_model_name,
                 api_key=settings.iointelligence_api_key,
                 base_url=settings.openai_base_url,
-                callbacks=[get_opik_handler()],
+                # callbacks=[get_opik_handler()],
                 timeout=600,
                 max_retries=2,
                 default_headers={

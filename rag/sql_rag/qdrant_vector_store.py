@@ -63,7 +63,7 @@ def run_sql(sql: str):
     if response.status_code != 200:
         print(f"Error running SQL: {response.status_code} - {response.text}")
         raise Exception(f"Error running SQL: {response.status_code} - {response.text}")
-    return pd.DataFrame(response.json()['data'])
+    return response.json()['data']
 
 
 class IOIntelligence(VannaBase):

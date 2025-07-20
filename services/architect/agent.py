@@ -7,6 +7,7 @@ import uuid
 import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from pydantic_ai.providers.openai import OpenAIProvider
 from pathlib import Path
 import tempfile
 import plotly.io as pio
@@ -38,12 +39,15 @@ class ArchitectAgent:
         self.tools = ArchitectTools()
         
         # Initialize PydanticAI agent
+        # self.model = OpenAIModel(
+        #     model_name=settings.io_model,
+        #     # api_key=settings.iointelligence_api_key,
+        #     # base_url=settings.openai_base_url,
+        # )
         self.model = OpenAIModel(
-            model_name=settings.io_model,
-            api_key=settings.iointelligence_api_key,
-            base_url=settings.openai_base_url,
-        )
-        
+                model_name=settings.io_model,
+                provider=OpenAIProvider(base_url= settings.openai_base_url, api_key=settings.iointelligence_api_key),
+            )
         # Create the main research agent
         self.research_agent = Agent(
             model=self.model,

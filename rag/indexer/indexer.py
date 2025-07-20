@@ -4,14 +4,16 @@ import uuid # Added for unique IDs
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import Distance, VectorParams
 # Import the new JSON processing function and its default directory
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from rag.indexer.embedder import load_process_embed_json, DEFAULT_MODEL_NAME, DEFAULT_JSON_DIR
 from sentence_transformers import SentenceTransformer # Needed to get vector size
-
+from config.settings import settings
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Qdrant configuration
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333") # Allow overriding via env var
-COLLECTION_NAME = "io_net_docs" # Consider a new collection name for JSON data
+COLLECTION_NAME = settings.qdrant_collection_name # Consider a new collection name for JSON data
 
 def get_vector_size(model_name: str) -> int:
     """Gets the embedding dimension size for a Sentence Transformer model."""
@@ -109,14 +111,17 @@ def index_data_to_qdrant(
         logging.warning("No points prepared for upserting.")
         return True # Technically not an error, just nothing to do
 
-    logging.info(f"Preparing to upsert {len(points_to_upsert)} points into '{collection_name}'...")
+    BATCH_SIZE = 100  # You can adjust this as needed
+    logging.info(f"Preparing to upsert {len(points_to_upsert)} points into '{collection_name}' in batches of {BATCH_SIZE}...")
     try:
-        # Upsert in batches for potentially large datasets
-        client.upsert(
-            collection_name=collection_name,
-            points=points_to_upsert,
-            wait=True # Wait for operation to complete
-        )
+        for i in range(0, len(points_to_upsert), BATCH_SIZE):
+            batch = points_to_upsert[i:i+BATCH_SIZE]
+            client.upsert(
+                collection_name=collection_name,
+                points=batch,
+                wait=True
+            )
+            logging.info(f"Upserted batch {i//BATCH_SIZE + 1} ({len(batch)} points)")
         logging.info(f"Successfully upserted {len(points_to_upsert)} points.")
         return True
     except Exception as e:

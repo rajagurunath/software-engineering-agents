@@ -12,9 +12,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Default model name (can be configured)
 DEFAULT_MODEL_NAME = 'sentence-transformers/all-mpnet-base-v2'
 # Directory for markdown files (kept for potential backward compatibility or other uses)
-DEFAULT_MARKDOWN_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'markdown4')
+DEFAULT_MARKDOWN_DIR = os.path.join(os.path.dirname(__file__), '../../', 'data', 'docs_markdown')
 # Directory for JSON files (NEW)
-DEFAULT_JSON_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'markdown4')
+DEFAULT_JSON_DIR = os.path.join(os.path.dirname(__file__), '../../', 'data', 'docs_markdown')
 
 # Simple chunking parameters
 CHUNK_SIZE = 500 # Approximate characters per chunk
@@ -85,97 +85,53 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHU
 
 def load_process_embed_json(json_dir: str = DEFAULT_JSON_DIR, model_name: str = DEFAULT_MODEL_NAME) -> List[Dict[str, Any]]:
     """
-    Loads JSON files from crawl4ai, extracts text and metadata, chunks text,
+    Loads markdown files, extracts text and metadata, chunks text,
     generates embeddings, and returns structured data.
     """
     processed_data = []
     chunks_metadata = [] # Store metadata per chunk before embedding
 
-    logging.info(f"Loading and processing JSON files from: {json_dir}")
+    logging.info(f"Loading and processing markdown files from: {json_dir}")
     if not os.path.isdir(json_dir):
-        logging.error(f"JSON directory not found: {json_dir}")
+        logging.error(f"Markdown directory not found: {json_dir}")
         return []
 
-    for i,filename in enumerate(os.listdir(json_dir)):
+    for filename in os.listdir(json_dir):
         if filename.lower().endswith(".md"):
             file_path = os.path.join(json_dir, filename)
-            with open(file_path, 'r', encoding='utf-8') as f:
-                plain_text = f.read()
-            
-            # Convert markdown to plain text
-            # plain_text = markdown_to_text(md_content)
-            
-            # Remove links and keep only paragraph texts
-            plain_text = "\n".join([line for line in plain_text.splitlines() if not line.startswith("[](") and line.strip()])
-            plain_text = "\n".join([line for line in plain_text.splitlines() if not line.startswith("![](") and line.strip()])
-            plain_text = "\n".join([line for line in plain_text.splitlines() if not line.startswith("* [") and line.strip()])
-        if filename.lower().endswith(".json"):
-            file_path = os.path.join(json_dir, filename)
-            logging.debug(f"Processing file: {file_path}")
+            logging.debug(f"Processing markdown file: {file_path}")
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-
-                # # Extract text content (prioritize cleaned_html, fallback to html)
-                # plain_text = ""
-                # # if data.get('cleaned_html'):
-                # #     # Assuming cleaned_html is already plain text or needs minimal cleaning
-                # #     # If it's HTML, we might need BeautifulSoup again
-                # #     # For now, assume it's usable text
-                # #     plain_text = data['cleaned_html'] # Or apply minimal cleaning if needed
-                # if data.get('html'):
-                #     logging.debug(f"Using 'html' field for text extraction from {filename}")
-                #     plain_text = extract_text_from_html(data['html'])
-                # else:
-                #     logging.warning(f"No 'cleaned_html' or 'html' field found in {filename}. Skipping text extraction.")
-                #     # Decide if you want to skip the file entirely or proceed with metadata only
-                #     # continue # Option: skip file if no text
-
-                # if not plain_text:
-                #     logging.warning(f"No text could be extracted from {filename}. Skipping file.")
-                #     continue
-
-                # Extract metadata
-                source_url = data.get('url', None)
-                image_urls = [img.get('src') for img in data.get('media', {}).get('images', []) if img.get('src')]
-                internal_links = [link.get('href') for link in data.get('links', {}).get('internal', []) if link.get('href')]
-                external_links = [link.get('href') for link in data.get('links', {}).get('external', []) if link.get('href')]
-                link_urls = internal_links + external_links
-
-                # Chunk the text
-                # chunks = chunk_text(plain_text)
-                # for i, chunk in enumerate(chunks):
-                # Store chunk text and its associated metadata
-                chunks_metadata.append({
-                    "text": plain_text,
-                    "source_file": file_path,
-                    "chunk_index": i,
-                    "source_url": source_url,
-                    "image_urls": image_urls,
-                    "link_urls": link_urls
-                })
-
-            except json.JSONDecodeError:
-                logging.error(f"Error decoding JSON from file {filename}")
+                    md_content = f.read()
+                plain_text = markdown_to_text(md_content)
+                if not plain_text:
+                    logging.warning(f"No text extracted from {filename}")
+                    continue
+                chunks = chunk_text(plain_text)
+                for i, chunk in enumerate(chunks):
+                    chunks_metadata.append({
+                        "text": chunk,
+                        "source_file": file_path,
+                        "chunk_index": i,
+                        "source_url": None,
+                        "image_urls": [],
+                        "link_urls": []
+                    })
             except Exception as e:
-                logging.error(f"Error processing file {filename}: {e}", exc_info=True)
+                logging.error(f"Error processing markdown file {filename}: {e}")
 
-    # if not chunks_metadata:
-    #     logging.warning("No text chunks found to embed.")
-    #     return []
+    if not chunks_metadata:
+        logging.warning("No text chunks found to embed.")
+        return []
 
     logging.info(f"Found {len(chunks_metadata)} text chunks to embed.")
     logging.info(f"Loading embedding model: {model_name}")
     try:
-        # Separate texts for batch embedding
         texts_to_embed = [item['text'] for item in chunks_metadata]
-
         model = SentenceTransformer(model_name)
         logging.info("Generating embeddings...")
         embeddings = model.encode(texts_to_embed, show_progress_bar=True)
         logging.info("Embeddings generated successfully.")
-
-        # Combine metadata with embeddings
         for i, item in enumerate(chunks_metadata):
             processed_data.append({
                 "text": item['text'],
@@ -183,12 +139,11 @@ def load_process_embed_json(json_dir: str = DEFAULT_JSON_DIR, model_name: str = 
                 "source_url": item['source_url'],
                 "image_urls": item['image_urls'],
                 "link_urls": item['link_urls'],
-                "embedding": embeddings[i].tolist() # Convert numpy array to list
+                "embedding": embeddings[i].tolist()
             })
-
     except Exception as e:
         logging.error(f"Error during embedding generation: {e}", exc_info=True)
-        return [] # Return empty list on embedding error
+        return []
 
     logging.info(f"Successfully processed and embedded {len(processed_data)} chunks.")
     return processed_data
@@ -212,6 +167,7 @@ def load_process_and_embed(markdown_dir: str = DEFAULT_MARKDOWN_DIR, model_name:
 
     for filename in os.listdir(markdown_dir):
         if filename.lower().endswith(".md"):
+            print(f"[LEGACY] Processing file: {filename}")
             file_path = os.path.join(markdown_dir, filename)
             logging.debug(f"[LEGACY] Processing file: {file_path}")
             try:
