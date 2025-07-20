@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import plotly.io as pio
 import plotly.graph_objects as go
+import pandas as pd
 
 # Import existing services
 from services.developer.pr_reviewer import PRReviewService
@@ -24,6 +25,7 @@ class ArchitectTools:
     """Centralized tool manager for the Architect Agent"""
     
     def __init__(self):
+        # Reuse existing services - DON'T REINVENT THE WHEEL
         self.pr_reviewer = PRReviewService()
         self.pr_creator = PRCreatorService()
         self.pr_comment_handler = PRCommentHandler()
@@ -48,7 +50,7 @@ class ArchitectTools:
 
     # CODING TOOLS
     async def review_pr(self, pr_url: str, user_id: str, thread_id: str = None) -> Dict[str, Any]:
-        """Review a pull request"""
+        """Review a pull request using existing PRReviewService"""
         try:
             request = PRReviewRequest(
                 pr_url=pr_url,
@@ -56,6 +58,7 @@ class ArchitectTools:
                 user_id=user_id
             )
             
+            # Use existing PR review service - DON'T REINVENT
             result = await self.pr_reviewer.review_pr(request)
             
             return {
@@ -74,7 +77,7 @@ class ArchitectTools:
 
     async def create_pr(self, description: str, repo_url: str, base_branch: str, 
                        user_id: str, thread_id: str = None) -> Dict[str, Any]:
-        """Create a new pull request"""
+        """Create a new pull request using existing PRCreatorService"""
         try:
             import uuid
             branch_name = f"architect-feature-{uuid.uuid4().hex[:8]}"
@@ -89,6 +92,7 @@ class ArchitectTools:
                 user_id=user_id
             )
             
+            # Use existing PR creator service - DON'T REINVENT
             result = await self.pr_creator.create_pr(request)
             
             return {
@@ -106,7 +110,7 @@ class ArchitectTools:
 
     async def handle_pr_comments(self, pr_url: str, user_id: str, 
                                 thread_id: str = None) -> Dict[str, Any]:
-        """Handle PR comments and feedback"""
+        """Handle PR comments and feedback using existing PRCommentHandler"""
         try:
             request = PRCommentHandlingRequest(
                 pr_url=pr_url,
@@ -115,6 +119,7 @@ class ArchitectTools:
                 channel_id="architect"
             )
             
+            # Use existing PR comment handler - DON'T REINVENT
             result = await self.pr_comment_handler.handle_pr_comments(request)
             
             return {
@@ -130,29 +135,45 @@ class ArchitectTools:
             logger.error(f"PR comment handling failed: {e}")
             return {"success": False, "error": str(e)}
 
-    # DATA TOOLS
+    # DATA TOOLS - USE IONETDATABOT PROPERLY
     def query_data(self, question: str) -> Dict[str, Any]:
-        """Query io.net data using IONetDataBot"""
+        """Query io.net data using IONetDataBot with full functionality"""
         try:
             if not self.data_bot:
                 return {"success": False, "error": "Data bot not initialized"}
             
-            # Use the data bot to answer the question
-            result = self.data_bot.ask(question)
+            # Use IONetDataBot properly with all functionality
+            sql = self.data_bot.generate_sql(question=question)
+            data = self.data_bot.run_sql(sql=sql)
+            temp_df = pd.DataFrame(data)
             
-            # Extract plotly chart if present
-            plotly_json = None
-            if hasattr(result, 'plotly_json') and result.plotly_json:
-                plotly_json = result.plotly_json
-            elif isinstance(result, dict) and 'plotly_json' in result:
-                plotly_json = result['plotly_json']
+            # Generate plotly visualization
+            plotly_code = self.data_bot.generate_plotly_code(
+                question=question, 
+                sql=sql, 
+                df_metadata=temp_df
+            )
+            fig = self.data_bot.get_plotly_figure(plotly_code=plotly_code, df=temp_df)
+            plotly_json = fig.to_json()
+            
+            # Generate followup questions
+            followup_questions = self.data_bot.generate_followup_questions(
+                question=question, 
+                sql=sql, 
+                df=temp_df, 
+                n_questions=5
+            )
             
             return {
                 "success": True,
                 "data": {
-                    "answer": str(result),
+                    "answer": f"Query executed successfully. Found {len(data)} records.",
+                    "sql_query": sql,
+                    "data": data,
                     "plotly_json": plotly_json,
-                    "query_type": "data_analysis"
+                    "followup_questions": followup_questions,
+                    "query_type": "data_analysis",
+                    "row_count": len(data)
                 }
             }
         except Exception as e:
@@ -197,10 +218,11 @@ class ArchitectTools:
             logger.error(f"SQL execution failed: {e}")
             return {"success": False, "error": str(e)}
 
-    # DOCS TOOLS
+    # DOCS TOOLS - USE EXISTING RAGASSISTANT
     def search_docs(self, query: str, top_k: int = 5) -> Dict[str, Any]:
-        """Search io.net documentation"""
+        """Search io.net documentation using existing RagAssistant"""
         try:
+            # Use existing RagAssistant - DON'T REINVENT
             result = self.docs_assistant.answer(query, top_k=top_k)
             
             return {
@@ -231,6 +253,7 @@ class ArchitectTools:
             all_sources = []
             
             for query in queries:
+                # Use existing RagAssistant
                 result = self.docs_assistant.answer(query, top_k=3)
                 if result["answer"] and "couldn't find" not in result["answer"].lower():
                     insights.append({
@@ -253,20 +276,6 @@ class ArchitectTools:
             logger.error(f"Documentation insights failed: {e}")
             return {"success": False, "error": str(e)}
 
-    # UTILITY METHODS
-    def create_plotly_visualization(self, data: Dict[str, Any], chart_type: str = "bar") -> Optional[str]:
-        """Create a Plotly visualization from data"""
-        try:
-            if chart_type == "bar" and "x" in data and "y" in data:
-                fig = go.Figure(data=go.Bar(x=data["x"], y=data["y"]))
-                fig.update_layout(title=data.get("title", "Data Visualization"))
-                return pio.to_json(fig)
-            
-            # Add more chart types as needed
-            return None
-        except Exception as e:
-            logger.error(f"Visualization creation failed: {e}")
-            return None
 
     async def execute_tool_action(self, tool_type: str, action: str, query: str, 
                                  context: Dict[str, Any] = None) -> Dict[str, Any]:
