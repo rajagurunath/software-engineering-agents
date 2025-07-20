@@ -9,6 +9,7 @@ from core.workflows import PRWorkflows
 from services.developer.approval_system import ApprovalService
 from models.schemas import PRReviewRequest, PRCreationRequest, PRCommentHandlingRequest
 from config.settings import settings
+from services.architect.slack_integration import register_architect_handlers
 import re
 from utils.opik_tracer import trace
 import asyncio
@@ -41,6 +42,9 @@ class SlackBotHandler:
         self.approval_service = ApprovalService()
         
         self._register_handlers()
+        
+        # Register architect agent handlers
+        register_architect_handlers(self.app)
     
 
     def _register_handlers(self):
