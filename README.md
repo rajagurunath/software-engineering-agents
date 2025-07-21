@@ -20,38 +20,23 @@ With the help of **io.net io intelligence**, you can access open-source models a
 
 ---
 
-## Multi-Bot Architecture
+## 🤖 Multi-Bot Architecture
 
-The system now supports multiple specialized Slack bots, each with dedicated capabilities:
+The system supports **5 specialized Slack bots**, each with dedicated capabilities and identities. For detailed documentation, see [**Core Module Documentation**](./core/README.md).
 
-### 🏗️ Architect Agent (`@architect-bot`)
-- Deep research and analysis
-- Data visualization and insights  
-- Documentation search and synthesis
-- Multi-tool orchestration
+### Quick Overview
+- 🏗️ **Architect Agent** - Deep research, data analysis, documentation
+- 👨‍💻 **Developer Agent** - PR reviews, code creation, GitHub integration  
+- 📊 **Data Analyst Agent** - SQL queries, reports, visualizations
+- 🚨 **Sentry Agent** - Error debugging, log analysis, monitoring
+- 🤖 **Main Dispatcher** - File processing, coordination, help
 
-### 👨‍💻 Developer Agent (`@developer-bot`)
-- Pull request reviews and creation
-- Code quality analysis
-- PR comment handling and resolution
-- GitHub integration
-
-### 📊 Data Analyst Agent (`@data-analyst-bot`)
-- Network data analysis
-- SQL query generation and execution
-- Report generation with visualizations
-- Performance metrics and insights
-
-### 🚨 Sentry Agent (`@sentry-bot`)
-- Error debugging and analysis
-- Sentry issue investigation
-- Log analysis and troubleshooting
-- Production issue resolution
-
-### 🤖 Main Dispatcher (`@main-bot`)
-- Central coordination and help
-- File processing (audio/video transcription)
-- Agent discovery and routing
+### Architecture Benefits
+- **Specialized Identity**: Each agent appears as distinct bot in Slack
+- **Modular Design**: Independent deployment and scaling
+- **Clear Separation**: No command conflicts between agents
+- **Better UX**: Users can directly mention specific agents
+- **Maintainable**: Self-contained logic per agent
 
 ---
 
@@ -69,68 +54,6 @@ The system now supports multiple specialized Slack bots, each with dedicated cap
 
 ---
 
-## Setup for Multi-Bot System
-
-### Slack App Configuration
-
-For the multi-bot architecture, you'll need to create **5 separate Slack Applications**:
-
-1. **Architect Bot** - For research and analysis
-2. **Developer Bot** - For code reviews and PR management  
-3. **Data Analyst Bot** - For data analysis and reporting
-4. **Sentry Bot** - For error debugging and monitoring
-5. **Main Dispatcher Bot** - For coordination and file processing
-
-For each Slack App:
-1. Create the app at [Slack API](https://api.slack.com/apps)
-2. Configure Bot User with appropriate scopes
-3. Enable Socket Mode and generate App-Level Token
-4. Install to your workspace
-5. Copy the tokens to your `.env` file
-
-### Environment Variables
-
-Update your `.env` file with tokens for each bot:
-
-```env
-# Main Dispatcher Bot
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-SLACK_SIGNING_SECRET=...
-
-# Architect Bot
-SLACK_ARCHITECT_BOT_TOKEN=xoxb-...
-SLACK_ARCHITECT_APP_TOKEN=xapp-...
-SLACK_ARCHITECT_SIGNING_SECRET=...
-
-# Developer Bot  
-SLACK_DEVELOPER_BOT_TOKEN=xoxb-...
-SLACK_DEVELOPER_APP_TOKEN=xapp-...
-SLACK_DEVELOPER_SIGNING_SECRET=...
-
-# Data Analyst Bot
-SLACK_DATA_ANALYST_BOT_TOKEN=xoxb-...
-SLACK_DATA_ANALYST_APP_TOKEN=xapp-...
-SLACK_DATA_ANALYST_SIGNING_SECRET=...
-
-# Sentry Bot
-SLACK_SENTRY_BOT_TOKEN=xoxb-...
-SLACK_SENTRY_APP_TOKEN=xapp-...
-SLACK_SENTRY_SIGNING_SECRET=...
-```
-
-### Running the Multi-Bot System
-
-```bash
-# Run all specialized bots
-python multi_bot_main.py
-
-# Or run the original single bot
-python slack_bot_main.py
-```
-
----
-
 ## Agents and Capabilities
 
 | Agent                  | Capabilities                                                                                                                                                                                                 |
@@ -140,35 +63,6 @@ python slack_bot_main.py
 | **Senior Engineer**    | - All Junior Engineer capabilities<br>- Handle complex tasks<br>- Review code<br>- Provide architectural guidance<br>- Deep understanding of codebase and frameworks   |
 | **Data Analyst**       | - Analyze data, generate reports, provide insights<br>- Create dashboards and visualizations                                                                           |
 | **Sentry Agent**       | - Monitor applications<br>- Detect issues<br>- Provide alerts                                                                                                         |
-
----
-
-## Bot Commands Reference
-
-### Architect Agent Commands
-- `ask architect <question>` - Comprehensive research
-- `data-analyst <question>` - Quick data analysis
-- `engineer docs <question>` - Documentation search
-
-### Developer Agent Commands  
-- `review pr <github_url>` - Review pull requests
-- `create pr` - Create new pull requests
-- `handle comments <pr_url>` - Address PR feedback
-
-### Data Analyst Agent Commands
-- `analyze data <question>` - Analyze network data
-- `sql query <request>` - Generate SQL queries
-- `generate report <topic>` - Create reports
-
-### Sentry Agent Commands
-- `handle sentry` - Debug Sentry issues (use in alert threads)
-- `debug error <description>` - General error debugging
-- `analyze logs <content>` - Analyze log files
-
-### Main Dispatcher Commands
-- `help` - Show help message
-- `agents` - List available agents
-- Upload audio/video files for automatic processing
 
 ---
 
@@ -213,11 +107,52 @@ G --> D
 
 For detailed diagrams of the various workflows, please see the following README files:
 
-- [**Core Module**](./core/README.md): Illustrates the Slack Bolt communication flow.
+- [**Core Module**](./core/README.md): **Multi-bot architecture, setup guide, and communication flows**
 - [**Architect Agent**](./services/architect/README.md): Shows the workflow of the Architect Agent.
 - [**Developer Services**](./services/developer/README.md): Contains diagrams for the PR review and PR creation workflows.
 - [**Data Support Services**](./services/data_support/README.md): Illustrates the IODatabot workflow.
 - [**Slack Setup**](./slack_setup/README.md): Provides detailed instructions for setting up the Slack bot.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Setup Multi-Bot System
+```bash
+# Clone and install
+git clone <repository>
+pip install -r requirements.txt
+
+# Configure environment (see core/README.md for details)
+cp .env.example .env
+# Add your Slack tokens for each bot
+
+# Run all specialized bots
+python multi_bot_main.py
+```
+
+### 2. Create Slack Applications
+For detailed setup instructions, see [**Core Module Documentation**](./core/README.md#setup-and-configuration).
+
+You'll need to create **5 separate Slack Apps** and configure tokens for each agent.
+
+### 3. Basic Usage
+```bash
+# Research and analysis
+ask architect How is the network performing?
+
+# Code management  
+review pr https://github.com/owner/repo/pull/123
+
+# Data analysis
+analyze data How many devices are online?
+
+# Error debugging
+handle sentry  # Use in Sentry alert threads
+
+# Get help
+help  # Shows all available commands
+```
 
 ---
 
@@ -253,7 +188,18 @@ Currently, all these agents are accessible from **Slack**. By using these agents
 
 ---
 ## Deploy Agents Team
-- Create a Slack bot and provide the API key for each bot.
+
+### Multi-Bot Deployment (Recommended)
+```bash
+python multi_bot_main.py
+```
+
+### Single Bot Deployment (Legacy)
+```bash
+python slack_bot_main.py
+```
+
+For detailed setup instructions, see [**Core Module Documentation**](./core/README.md).
 
 ---
 
@@ -266,6 +212,18 @@ Currently, all these agents are accessible from **Slack**. By using these agents
   - By gathering data from the conversations, collect and annotate useful prompts.
   - Fine-tune the RAG dataset, which will eventually improve the performance of the agents.
   - Use TaaS to train the model with the collected data.
+
+---
+
+## 📚 Documentation Structure
+
+- [**Main README**](./README.md) - Overview and quick start
+- [**Core Module**](./core/README.md) - **Multi-bot architecture and setup** ⭐
+- [**Architect Service**](./services/architect/README.md) - Research agent workflows
+- [**Developer Services**](./services/developer/README.md) - PR and code workflows  
+- [**Data Support**](./services/data_support/README.md) - Data analysis workflows
+- [**Slack Setup**](./slack_setup/README.md) - Slack bot configuration
+- [**RAG System**](./rag/README.md) - Retrieval and indexing
 
 ---
 
