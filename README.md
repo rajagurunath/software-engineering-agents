@@ -79,6 +79,8 @@ G --> D
 ```
 *The workflow is cyclical, enabling continuous self-improvement of the agent ecosystem.*
 
+> **Note:** The workflows are designed for durable execution using [**DBOS (Durable Execution for AI Applications)**](https://dbos.dev/), ensuring that long-running processes are reliable and fault-tolerant.
+
 ---
 
 ## Workflow Diagrams
@@ -88,6 +90,8 @@ For detailed diagrams of the various workflows, please see the following README 
 - [**Core Module**](./core/README.md): Illustrates the Slack Bolt communication flow.
 - [**Architect Agent**](./services/architect/README.md): Shows the workflow of the Architect Agent.
 - [**Developer Services**](./services/developer/README.md): Contains diagrams for the PR review and PR creation workflows.
+- [**Data Support Services**](./services/data_support/README.md): Illustrates the IODatabot workflow.
+- [**Slack Setup**](./slack_setup/README.md): Provides detailed instructions for setting up the Slack bot.
 
 ---
 
