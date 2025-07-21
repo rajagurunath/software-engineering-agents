@@ -20,6 +20,10 @@ import plotly.graph_objects as go
 import tempfile
 import os
 import json
+from rag.multimedia_rag.audio_transcriper import AudioRAG,process_slack_audio_event
+from pixeltable.functions.video import extract_audio
+from pixeltable.functions import whisper
+import datetime
 
 
 def save_plotly_image_from_json(plotly_json: str) -> str:
@@ -452,9 +456,51 @@ This will:
             await say(f"❌ <@{user_id}> rejected execution {execution_id}")
 
         @self.app.event("message")
-        async def handle_message_events(body, logger):
+        async def handle_message_events(body, logger,say):
             logger.info(body)
-            
+            event = body.get('event', {})
+            files = event.get('files', [])
+            if event.get('subtype') == 'file_share' and files:
+                for f in files:
+                    mimetype = f.get('mimetype', '')
+                    if mimetype.startswith('audio/') or mimetype in ['audio/mp4', 'audio/mpeg', 'audio/x-m4a']:
+                        url = f.get('pr')
+                        filename = f.get('name', 'audio_message.mp4')
+                        user = event.get('user')
+                        ts = event.get('ts')
+                        channel = event.get('channel')
+                        slack_token = settings.slack_bot_token
+                        import aiohttp
+                        import tempfile
+                        transcript = None
+                        local_path = None
+                        try:
+                            transcript = process_slack_audio_event(body)
+
+                            if transcript:
+                                await self.app.client.chat_postMessage(channel=channel, text=f"📝 Transcript: {transcript}", thread_ts=ts)
+                                # Pass transcript to architect agent
+                                try:
+                                    result = await self.architect_service.conduct_research(
+                                        query=transcript,
+                                        user_id=user,
+                                        research_type=None,
+                                        thread_id=ts,
+                                        channel_id=channel,
+                                        include_visualizations=True
+                                    )
+                                    await self._send_architect_results(say, result, channel, ts)
+                                    # await self._send_architect_results(self.app.client.chat_postMessage, result, channel, ts)
+                                except Exception as e:
+                                    logger.error(f"Architect request from audio transcript failed: {e}")
+                                    await self.app.client.chat_postMessage(channel=channel, text=f"❌ Architect agent failed: {str(e)}", thread_ts=ts)
+                            else:
+                                await self.app.client.chat_postMessage(channel=channel, text=f"❌ Audio transcription failed.", thread_ts=ts)
+                        except Exception as e:
+                            logger.error(f"Audio processing error: {e}")
+                        finally:
+                            if local_path and os.path.exists(local_path):
+                                os.remove(local_path)
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger,say):
             logger.info(body)

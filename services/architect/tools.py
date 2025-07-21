@@ -217,7 +217,7 @@ class ArchitectTools:
             if any(keyword in main_question.lower() for keyword in ['user', 'owner', 'email', '@']):
                 related_questions.extend([
                     f"How many devices does this user own?",
-                    f"What are the total block rewards earned by this user?",
+                    f"How much total block rewards has this user earned?",
                     f"How many clusters were created on this user's devices?",
                     f"Which devices are co-staked for this user?"
                 ])
@@ -225,8 +225,7 @@ class ArchitectTools:
             # Check if it's about devices
             elif any(keyword in main_question.lower() for keyword in ['device', 'gpu', 'cpu', 'hardware']):
                 related_questions.extend([
-                    f"What is the device utilization trend over time?",
-                    f"How many devices are currently earning block rewards?",
+                    f"How much total block rewards has this device earned?",
                     f"What is the distribution of device types in the network?",
                     f"Which devices have the highest uptime?"
                 ])
@@ -236,7 +235,7 @@ class ArchitectTools:
                 related_questions.extend([
                     f"What is the trend of block rewards over the last 30 days?",
                     f"How many unique devices earned rewards today?",
-                    f"What is the average reward per device?",
+                    f"What is the average reward per device from last week?",
                     f"Which device types earn the most rewards?"
                 ])
             
