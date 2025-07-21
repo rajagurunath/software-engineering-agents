@@ -142,3 +142,4 @@ local.py
 /http_requests/
 /data/json/
 trial/*
+*.mp4

@@ -1,16 +1,34 @@
 from openai import AsyncOpenAI
 from typing import Dict, List, Any
-from config.settings import settings
 from opik.integrations.openai import track_openai
 import os
 from utils.opik_tracer import trace
+import logging
+from dotenv import load_dotenv  
+load_dotenv(dotenv_path="/Users/gurunathlunkupalivenugopal/ionet/repos/agent_team/.env")  # Load environment variables from .env file
 os.environ["OPIK_URL_OVERRIDE"] = "http://localhost:5173/api"
+from config.settings import settings
 
+logger = logging.getLogger(__name__)
 class LLMClient:
     def __init__(self):
         """Initialise Opik-instrumented OpenAI async client."""
         raw_client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
         self.client = track_openai(raw_client)
+
+
+    async def generate_text(self, sys_prompt: str, user_prompt: str) -> str:       
+        """Generate text using GPT"""
+        response = await self.client.chat.completions.create(
+            model=settings.io_model,
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+        # Return the generated text
+        return response.choices[0].message.content.strip()
         
         
     async def analyze_code(self, prompt: str) -> Dict[str, Any]:

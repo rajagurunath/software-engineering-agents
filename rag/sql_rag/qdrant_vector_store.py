@@ -63,7 +63,7 @@ def run_sql(sql: str):
     if response.status_code != 200:
         print(f"Error running SQL: {response.status_code} - {response.text}")
         raise Exception(f"Error running SQL: {response.status_code} - {response.text}")
-    return pd.DataFrame(response.json()['data'])
+    return response.json()['data']
 
 
 class IOIntelligence(VannaBase):
@@ -92,6 +92,7 @@ class IOIntelligence(VannaBase):
         # Use the super generate_sql
         print("generate_sql:",question)
         question += " Note: Very important generate sql with fully qualified table_names i.e {schema_name}.{table_name} example block_rewards.blocks Always follow this one"
+        question += " Note: Another important thing is to use user_id or device_id in the sql query correctly generate the working postgres sql query"
         sql = super().generate_sql(question, **kwargs)
         print(sql)
         # Replace "\_" with "_"

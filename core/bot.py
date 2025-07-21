@@ -7,8 +7,11 @@ from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
 from core.workflows import PRWorkflows
 from services.developer.approval_system import ApprovalService
+from services.developer.sentry_debugger import SentryDebugger
 from models.schemas import PRReviewRequest, PRCreationRequest, PRCommentHandlingRequest
 from config.settings import settings
+from services.architect.service import ArchitectService
+from services.architect.models import ResearchType
 import re
 from utils.opik_tracer import trace
 import asyncio
@@ -17,6 +20,11 @@ import plotly.graph_objects as go
 import tempfile
 import os
 import json
+from rag.multimedia_rag.audio_transcriper import process_slack_audio_event
+from rag.multimedia_rag.video_rag import process_slack_video_event, process_video_with_rag
+from pixeltable.functions.video import extract_audio
+from pixeltable.functions import whisper
+import datetime
 
 
 def save_plotly_image_from_json(plotly_json: str) -> str:
@@ -39,6 +47,10 @@ class SlackBotHandler:
         # )
         self.workflows = PRWorkflows()
         self.approval_service = ApprovalService()
+        self.sentry_debugger = SentryDebugger()
+        
+        # Initialize architect service
+        self.architect_service = ArchitectService()
         
         self._register_handlers()
     
@@ -92,72 +104,147 @@ class SlackBotHandler:
                 logger.error(f"Error in PR review: {e}")
                 trace("slack.pr_review_error", {"error": str(e)})
                 await say(f"❌ Error reviewing PR: {str(e)}")
-        
-        # @self.app.message("sql bot")
-        # async def handle_sql_bot(message, say, context):
-        #     """Handle SQL bot requests"""
-        #     trace("slack.sql_bot_request", {
-        #         "user_id": message['user'],
-        #         "text": message['text'][:200]
-        #     })
-        #     await say("Hello, I am the SQL bot. How can I help you today?")
-        #     try:
-        #         text = message['text']
-        #         user_id = message['user']
-        #         thread_ts = message.get('thread_ts', message['ts'])
-        #         import requests
-        #         response = requests.post(settings.sql_bot_url, json={"query": text,"top_k": 5})
-        #         response_json = response.json()
-        #         print(response_json)
-        #         await say(response_json["data"])
-        #     except Exception as e:
-        #         logger.error(f"Error in SQL bot: {e}")
-        @self.app.message("sql bot")
-        async def handle_sql_bot(message, say, context):
-            trace("slack.sql_bot_request", {
+    
+        @self.app.message("ask architect")
+        async def handle_architect_request(message, say, context):
+            """Handle architect research requests"""
+            trace("slack.architect_request", {
                 "user_id": message['user'],
                 "text": message['text'][:200]
             })
-            await say("Hello, I am the SQL bot. How can I help you today?")
             try:
                 text = message['text']
                 user_id = message['user']
                 thread_ts = message.get('thread_ts', message['ts'])
                 channel = message['channel']
-                import requests
-                response = requests.post(settings.sql_bot_url, json={"query": text, "top_k": 5})
-                response_json = response.json()
-
-                # Send the data as a formatted message
-                data = response_json.get("data")
-                if data is not None:
-                    # Format as pretty JSON for Slack
-                    formatted_data = f"```{json.dumps(data, indent=2)}```"
-                    await say(formatted_data)
-
-                # Send the plotly chart if present
-                plotly_json = response_json.get("plotly_json")
-                if plotly_json:
-                    image_path = save_plotly_image_from_json(plotly_json)
-                    try:
-                        await self.app.client.files_upload_v2(
-                            channel=channel,
-                            thread_ts=thread_ts,
-                            file=image_path,
-                            title="Chart"
-                        )
-                    finally:
-                        os.remove(image_path)
-
-                # Optionally, send follow-up questions if present
-                followups = response_json.get("followup_questions")
-                if followups:
-                    if isinstance(followups, list):
-                        followup_text = "*Follow-up questions you can ask:*\n" + "\n".join(f"- {q}" for q in followups if q)
-                        await say(followup_text)
-
+                
+                # Parse architect command
+                research_params = self._parse_architect_command(text)
+                if not research_params:
+                    await say(self._get_architect_help_message())
+                    return
+                
+                # Send initial response
+                await say(f"🏗️ Starting deep research on: *{research_params['query']}*\n"
+                         f"Research type: {research_params.get('type', 'auto-detected')}\n"
+                         f"Generating up to {research_params.get('num_charts', 5)} charts.\n"
+                         f"This may take a few minutes...")
+                
+                # Conduct research
+                result = await self.architect_service.conduct_research(
+                    query=research_params['query'],
+                    user_id=user_id,
+                    research_type=research_params.get('type'),
+                    thread_id=thread_ts,
+                    channel_id=channel,
+                    include_visualizations=research_params.get('num_charts', 5) > 0,
+                    num_charts=research_params.get('num_charts', 5),
+                    user_id_context=research_params.get('user_id_context'),
+                    device_id_context=research_params.get('device_id_context')
+                )
+                
+                # Send results to Slack
+                await self._send_architect_results(say, result, channel, thread_ts)
+                
+                trace("slack.architect_complete", {
+                    "research_id": result.research_id,
+                    "findings_count": len(result.detailed_findings)
+                })
+                
             except Exception as e:
-                logger.error(f"Error in SQL bot: {e}")
+                logger.error(f"Architect request failed: {e}")
+                trace("slack.architect_error", {"error": str(e)})
+                await say(f"❌ Research failed: {str(e)}")
+
+        @self.app.message("data-analyst")
+        async def handle_quick_data(message, say, context):
+            """Handle quick data queries"""
+            trace("slack.quick_data_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                thread_ts = message.get('thread_ts', message['ts'])
+                channel = message['channel']
+                
+                # Extract query (remove command prefix)
+                query = text.replace('quick data', '').strip()
+                if not query:
+                    await say("Please provide a data query. Example: `quick data How many devices are online?`")
+                    return
+                
+                await say(f"📊 Analyzing data for: *{query}*")
+                
+                result = await self.architect_service.quick_data_analysis(query, user_id)
+                
+                if result["success"]:
+                    response = f"**Data Analysis Result:**\n{result['answer']}"
+                    await say(response)
+                    
+                    # Handle Plotly visualization
+                    if result.get("plotly_json"):
+                        image_path = save_plotly_image_from_json(result["plotly_json"])
+                        try:
+                            await self.app.client.files_upload_v2(
+                                channel=channel,
+                                thread_ts=thread_ts,
+                                file=image_path,
+                                title="Data Visualization"
+                            )
+                        finally:
+                            os.remove(image_path)
+                else:
+                    await say(f"❌ Data query failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                logger.error(f"Quick data query failed: {e}")
+                await say(f"❌ Data query failed: {str(e)}")
+
+        @self.app.message("engineer docs")
+        async def handle_quick_docs(message, say, context):
+            """Handle quick documentation searches"""
+            trace("slack.quick_docs_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                
+                # Extract query (remove command prefix)
+                query = text.replace('quick docs', '').strip()
+                if not query:
+                    await say("Please provide a documentation query. Example: `quick docs How to stake IO tokens?`")
+                    return
+                
+                await say(f"📚 Searching documentation for: *{query}*")
+                
+                result = await self.architect_service.quick_docs_search(query, user_id)
+                
+                if result["success"]:
+                    response = f"**Documentation Search Result:**\n{result['answer']}"
+                    
+                    # Add relevant links if available
+                    if result.get("relevant_links"):
+                        response += "\n\n**Relevant Links:**\n"
+                        for link in result["relevant_links"][:3]:
+                            response += f"• {link}\n"
+                    
+                    # Add followup questions if available
+                    if result.get("followup_questions"):
+                        response += "\n**Related Questions:**\n"
+                        for question in result["followup_questions"][:3]:
+                            response += f"• {question}\n"
+                    
+                    await say(response)
+                else:
+                    await say(f"❌ Documentation search failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                logger.error(f"Quick docs search failed: {e}")
+                await say(f"❌ Documentation search failed: {str(e)}")
 
         @self.app.message("create pr")
         async def handle_pr_creation(message, say, context):
@@ -333,6 +420,17 @@ This will:
                 logger.error(f"Error in PR comment handling: {e}")
                 trace("slack.pr_comments_error", {"error": str(e)})
                 await say(f"❌ Error handling PR comments: {str(e)}")
+
+                
+        @self.app.message("handle sentry")
+        async def handle_sentry_issue(message, say, context):
+            """ gets the sentry issue url from the slack conversation thread, 
+            people call this command at the sentry alert thread and this 
+            bot gets the sentry issue url from this head of the conversation 
+            """
+            await self.sentry_debugger.handle_sentry_issue(
+                message, say, context, self.app.client
+            )
                 
         @self.app.action("approve")
         async def handle_approval(ack, body, say):
@@ -363,14 +461,140 @@ This will:
             await say(f"❌ <@{user_id}> rejected execution {execution_id}")
 
         @self.app.event("message")
-        async def handle_message_events(body, logger):
+        async def handle_message_events(body, logger,say):
             logger.info(body)
+            event = body.get('event', {})
+            files = event.get('files', [])
             
+            if event.get('subtype') == 'file_share' and files:
+                for f in files:
+                    mimetype = f.get('mimetype', '')
+                    
+                    # Handle audio files
+                    if mimetype.startswith('audio/') or mimetype in ['audio/mp4', 'audio/mpeg', 'audio/x-m4a']:
+                        user = event.get('user')
+                        ts = event.get('ts')
+                        channel = event.get('channel')
+                        
+                        transcript = None
+                        try:
+                            transcript = process_slack_audio_event(body)
+
+                            if transcript:
+                                await self.app.client.chat_postMessage(channel=channel, text=f"📝 Transcript: {transcript}", thread_ts=ts)
+                                
+                                # Pass transcript to architect agent for analysis
+                                try:
+                                    result = await self.architect_service.conduct_research(
+                                        query=transcript,
+                                        user_id=user,
+                                        research_type=None,
+                                        thread_id=ts,
+                                        channel_id=channel,
+                                        include_visualizations=True
+                                    )
+                                    await self._send_architect_results(say, result, channel, ts)
+                                except Exception as e:
+                                    logger.error(f"Architect request from audio transcript failed: {e}")
+                                    await self.app.client.chat_postMessage(channel=channel, text=f"❌ Architect agent failed: {str(e)}", thread_ts=ts)
+                            else:
+                                await self.app.client.chat_postMessage(channel=channel, text=f"❌ Audio transcription failed.", thread_ts=ts)
+                        except Exception as e:
+                            logger.error(f"Audio processing error: {e}")
+                    
+                    # Handle video files
+                    elif mimetype.startswith('video/'):
+                        user = event.get('user')
+                        ts = event.get('ts')
+                        channel = event.get('channel')
+                        
+                        try:
+                            await self.app.client.chat_postMessage(
+                                channel=channel, 
+                                text=f"🎥 Video detected! Processing... This may take a moment.", 
+                                thread_ts=ts
+                            )
+                            
+                            # Download and prepare video
+                            video_info = process_slack_video_event(body)
+                            
+                            if video_info and video_info.get('success'):
+                                # Process video with RAG
+                                video_result = await process_video_with_rag(video_info)
+                                
+                                if video_result and video_result.get('success'):
+                                    # Post video understanding first
+                                    understanding_text = f"🎥 **Video Understanding:**\n{video_result['video_understanding']}"
+                                    if video_result.get('audio_transcript'):
+                                        understanding_text += f"\n\n📝 **Audio Transcript:**\n{video_result['audio_transcript']}"
+                                    
+                                    await self.app.client.chat_postMessage(
+                                        channel=channel, 
+                                        text=understanding_text, 
+                                        thread_ts=ts
+                                    )
+                                    
+                                    # Pass combined analysis to architect agent
+                                    combined_query = video_result['combined_analysis']
+                                    if combined_query:
+                                        await self._process_architect_request_from_media(combined_query, user, channel, ts)
+                                else:
+                                    await self.app.client.chat_postMessage(
+                                        channel=channel, 
+                                        text=f"❌ Video processing failed.", 
+                                        thread_ts=ts
+                                    )
+                            else:
+                                await self.app.client.chat_postMessage(
+                                    channel=channel, 
+                                    text=f"❌ Could not process video file.", 
+                                    thread_ts=ts
+                                )
+                                
+                        except Exception as e:
+                            logger.error(f"Video processing error: {e}")
+                            await self.app.client.chat_postMessage(
+                                channel=channel, 
+                                text=f"❌ Video processing error: {str(e)}", 
+                                thread_ts=ts
+                            )
+                            
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger,say):
             logger.info(body)
             user_id = body['event']['assistant_thread']['user_id']
             await say(f"Hello <@{user_id}>, I am your assistant! How can I help you today?")
+
+    async def _process_architect_request_from_media(self, query: str, user_id: str, channel: str, thread_ts: str):
+        """Process architect request from audio/video media"""
+        try:
+            result = await self.architect_service.conduct_research(
+                query=query,
+                user_id=user_id,
+                research_type=None,
+                thread_id=thread_ts,
+                channel_id=channel,
+                include_visualizations=True
+            )
+            await self._send_architect_results(self._create_say_function(channel, thread_ts), result, channel, thread_ts)
+        except Exception as e:
+            logger.error(f"Architect request from media failed: {e}")
+            await self.app.client.chat_postMessage(
+                channel=channel, 
+                text=f"❌ Architect analysis failed: {str(e)}", 
+                thread_ts=thread_ts
+            )
+    
+    def _create_say_function(self, channel: str, thread_ts: str):
+        """Create a say function for architect results"""
+        async def say(text=None, blocks=None):
+            await self.app.client.chat_postMessage(
+                channel=channel,
+                text=text,
+                blocks=blocks,
+                thread_ts=thread_ts
+            )
+        return say
 
     def _parse_structured_pr_command(self, text: str) -> Dict[str, str]:
         """Parse structured PR command with multiple format support"""
@@ -595,6 +819,160 @@ This will:
             })
         
         await say(blocks=blocks)
+        
+    def _parse_architect_command(self, text: str) -> Dict[str, str]:
+        """Parse architect command from Slack message"""
+        text = text.strip()
+        
+        if not text.startswith('ask architect'):
+            return None
+        
+        query_text = text[12:].strip()
+        
+        if not query_text:
+            return None
+        
+        params = {
+            'query': query_text,
+            'type': None,
+            'num_charts': 5,  # Default
+            'user_id_context': None,
+            'device_id_context': None,
+        }
+
+        # Extract UUID and determine if it's a user_id or device_id
+        uuid_match = re.search(r'(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', query_text, re.IGNORECASE)
+        if uuid_match:
+            uuid_str = uuid_match.group('id')
+            # Check for keywords before the UUID to determine context
+            context_window = query_text[:uuid_match.start()]
+            if 'device' in context_window.lower():
+                params['device_id_context'] = uuid_str
+            else: # Default to user_id if no specific context is found
+                params['user_id_context'] = uuid_str
+
+        # Handle chart count first, as it's more specific
+        # Handles --charts=N, --charts N, and typos like --no-charts=N or --no-charts N
+        charts_match = re.search(r'--(?:no-)?charts[=\s](?P<num>\d+)', query_text)
+        if charts_match:
+            params['num_charts'] = int(charts_match.group('num'))
+            query_text = query_text.replace(charts_match.group(0), '').strip()
+        # Handle flags for no charts
+        elif '--no-charts' in query_text or '--no-viz' in query_text:
+            params['num_charts'] = 0
+            query_text = query_text.replace('--no-charts', '').replace('--no-viz', '').strip()
+
+        # Handle research type
+        if '--type=' in query_text:
+            parts = query_text.split('--type=')
+            query_text = parts[0].strip()
+            type_part = parts[1].split()[0]
+            
+            try:
+                params['type'] = ResearchType(type_part)
+            except ValueError:
+                pass  # Invalid type, will auto-detect
+        
+        params['query'] = query_text.strip()
+        
+        return params
+
+    async def _send_architect_results(self, say, result, channel: str, thread_ts: str) -> None:
+        """Send comprehensive research results to Slack"""
+        try:
+            # Send executive summary
+            summary_blocks = [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"## 🏗️ Research Complete\n\n"
+                               f"**Query**: {result.original_query}\n"
+                               f"**Type**: {result.research_type.value}\n"
+                               f"**Duration**: {result.total_duration_seconds:.1f}s\n"
+                               f"**Steps**: {len(result.detailed_findings)}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"**Executive Summary**:\n{result.executive_summary}"
+                    }
+                }
+            ]
+            
+            await say(blocks=summary_blocks)
+            
+            # Send recommendations
+            if result.recommendations:
+                rec_text = "\n".join(f"• {rec}" for rec in result.recommendations[:5])
+                rec_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"**💡 Recommendations**:\n{rec_text}"
+                        }
+                    }
+                ]
+                await say(blocks=rec_blocks)
+            
+            # Upload visualizations
+            for viz in result.data_visualizations:
+                if viz.get("plotly_json"):
+                    image_path = save_plotly_image_from_json(viz["plotly_json"])
+                    if image_path:
+                        try:
+                            await self.app.client.files_upload_v2(
+                                channel=channel,
+                                thread_ts=thread_ts,
+                                file=image_path,
+                                title=viz.get("title", "Data Visualization")
+                            )
+                        finally:
+                            os.remove(image_path)
+            
+            # Upload HTML report if available
+            if result.html_report_path:
+                try:
+                    await self.app.client.files_upload_v2(
+                        channel=channel,
+                        thread_ts=thread_ts,
+                        file=result.html_report_path,
+                        title=f"Research Report - {result.original_query[:30]}",
+                        filetype="html"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to upload HTML report: {e}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send research results: {e}")
+            await say(f"✅ Research completed, but failed to send full results: {str(e)}")
+
+    def _get_architect_help_message(self) -> str:
+        """Get help message for architect commands"""
+        return """🏗️ **Architect Agent Commands:**
+
+**Deep Research:**
+• `ask architect <your question>` - Comprehensive multi-tool research
+• `ask architect <question> --type=data_analysis` - Focus on data analysis
+• `ask architect <question> --type=code_review` - Focus on code analysis
+• `ask architect <question> --type=documentation` - Focus on docs
+• `ask architect <question> --no-viz` - Skip visualizations
+
+**Quick Queries:**
+• `quick data <question>` - Quick data analysis with charts
+• `quick docs <question>` - Quick documentation search
+• `quick pr <github_url>` - Quick PR analysis
+
+**Examples:**
+• `ask architect How is the io.net network performing this month?`
+• `quick data How many devices earned block rewards today?`
+• `quick docs How to set up staking?`
+• `quick pr https://github.com/owner/repo/pull/123`
+
+The Architect Agent combines coding tools, data analysis, and documentation search to provide comprehensive insights about io.net."""
         
     async def start(self):
         """Start the Slack bot"""
