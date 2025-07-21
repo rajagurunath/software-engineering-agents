@@ -1,11 +1,13 @@
 from openai import AsyncOpenAI
 from typing import Dict, List, Any
-from config.settings import settings
 from opik.integrations.openai import track_openai
 import os
 from utils.opik_tracer import trace
 import logging
+from dotenv import load_dotenv  
+load_dotenv(dotenv_path="/Users/gurunathlunkupalivenugopal/ionet/repos/agent_team/.env")  # Load environment variables from .env file
 os.environ["OPIK_URL_OVERRIDE"] = "http://localhost:5173/api"
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 class LLMClient:

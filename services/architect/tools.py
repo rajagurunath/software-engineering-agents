@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import tempfile
 import os
+import time
 
 # Import existing services
 from services.developer.pr_reviewer import PRReviewService
@@ -138,25 +139,26 @@ class ArchitectTools:
             return {"success": False, "error": str(e)}
 
     # DATA TOOLS - ENHANCED WITH MULTIPLE QUESTIONS AND CHARTS
-    def query_data(self, question: str, generate_related: bool = True) -> Dict[str, Any]:
+    def query_data(self, question: str, num_charts: int = 5) -> Dict[str, Any]:
         """Query io.net data using IONetDataBot with enhanced multi-question analysis"""
         try:
             if not self.data_bot:
                 return {"success": False, "error": "Data bot not initialized"}
-            
+
             # Generate related questions for comprehensive analysis
             related_questions = []
-            if generate_related:
-                related_questions = self._generate_related_data_questions(question)
-            
+            if num_charts > 1:
+                related_questions = self._generate_related_data_questions(question, num_questions=num_charts - 1)
+
             # Process main question
-            main_result = self._process_single_data_question(question)
+            main_result = self._process_single_data_question(question, generate_chart=num_charts > 0)
             
             # Process related questions
             related_results = []
             for related_q in related_questions:
                 try:
-                    result = self._process_single_data_question(related_q)
+                    time.sleep(2)  # Add delay to avoid rate limiting
+                    result = self._process_single_data_question(related_q, generate_chart=True)
                     if result.get("success"):
                         related_results.append({
                             "question": related_q,
@@ -164,6 +166,8 @@ class ArchitectTools:
                         })
                 except Exception as e:
                     logger.warning(f"Failed to process related question '{related_q}': {e}")
+
+            total_charts = (1 if main_result.get("plotly_json") else 0) + len(related_results)
             
             return {
                 "success": True,
@@ -171,23 +175,30 @@ class ArchitectTools:
                     "main_question": question,
                     "main_result": main_result,
                     "related_analysis": related_results,
-                    "total_charts": 1 + len(related_results)
+                    "total_charts": total_charts
                 }
             }
         except Exception as e:
             logger.error(f"Data query failed: {e}")
             return {"success": False, "error": str(e)}
     
-    def _process_single_data_question(self, question: str) -> Dict[str, Any]:
+    def _process_single_data_question(self, question: str, generate_chart: bool = True) -> Dict[str, Any]:
         """Process a single data question using IONetDataBot"""
         try:
             # Use IONetDataBot with the exact pattern specified
             sql = self.data_bot.generate_sql(question=question)
             data = self.data_bot.run_sql(sql=sql)
             temp_df = pd.DataFrame(data)
-            plotly_code = self.data_bot.generate_plotly_code(question=question, sql=sql, df_metadata=temp_df)
-            fig = self.data_bot.get_plotly_figure(plotly_code=plotly_code, df=temp_df)
-            plotly_json = fig.to_json()
+            
+            plotly_json = None
+            if generate_chart:
+                try:
+                    plotly_code = self.data_bot.generate_plotly_code(question=question, sql=sql, df_metadata=temp_df)
+                    fig = self.data_bot.get_plotly_figure(plotly_code=plotly_code, df=temp_df)
+                    plotly_json = fig.to_json()
+                except Exception as e:
+                    logger.warning(f"Failed to generate Plotly chart for '{question}': {e}")
+
             followup_questions = self.data_bot.generate_followup_questions(question=question, sql=sql, df=temp_df, n_questions=5)
             
             return {
@@ -203,7 +214,7 @@ class ArchitectTools:
             logger.error(f"Single data query failed: {e}")
             return {"success": False, "error": str(e)}
     
-    def _generate_related_data_questions(self, main_question: str) -> List[str]:
+    def _generate_related_data_questions(self, main_question: str, num_questions: int = 4) -> List[str]:
         """Generate related questions for comprehensive data analysis"""
         # Use docs assistant to identify relevant tables and generate related questions
         try:
@@ -219,7 +230,9 @@ class ArchitectTools:
                     f"How many devices does this user own?",
                     f"How much total block rewards has this user earned?",
                     f"How many clusters were created on this user's devices?",
-                    f"Which devices are co-staked for this user?"
+                    f"Which devices are co-staked for this user?",
+                    f"What is the daily reward trend for this user?",
+                    f"What are the most used device types by this user?"
                 ])
             
             # Check if it's about devices
@@ -227,7 +240,10 @@ class ArchitectTools:
                 related_questions.extend([
                     f"How much total block rewards has this device earned?",
                     f"What is the distribution of device types in the network?",
-                    f"Which devices have the highest uptime?"
+                    f"Which devices have the highest uptime?",
+                    f"What is the average uptime per device model?",
+                    f"How many devices are currently online vs offline?",
+                    f"What is the geographical distribution of devices?"
                 ])
             
             # Check if it's about block rewards
@@ -236,7 +252,9 @@ class ArchitectTools:
                     f"What is the trend of block rewards over the last 30 days?",
                     f"How many unique devices earned rewards today?",
                     f"What is the average reward per device from last week?",
-                    f"Which device types earn the most rewards?"
+                    f"Which device types earn the most rewards?",
+                    f"What is the distribution of rewards by country?",
+                    f"Show the daily total rewards for the past month."
                 ])
             
             # Check if it's about clusters/jobs
@@ -245,7 +263,9 @@ class ArchitectTools:
                     f"What is the cluster utilization rate?",
                     f"How many jobs were completed successfully?",
                     f"What is the average job duration?",
-                    f"Which device types are most frequently hired?"
+                    f"Which device types are most frequently hired?",
+                    f"What is the trend of job creation over time?",
+                    f"Show the distribution of job statuses (completed, failed, running)."
                 ])
             
             # Default related questions
@@ -254,10 +274,12 @@ class ArchitectTools:
                     f"What are the key metrics related to this query?",
                     f"How has this metric changed over time?",
                     f"What factors influence this data?",
-                    f"Are there any anomalies or trends to note?"
+                    f"Are there any anomalies or trends to note?",
+                    f"What is the breakdown of this data by category?",
+                    f"How does this compare to the previous period?"
                 ])
             
-            return related_questions[:4]  # Limit to 4 related questions
+            return related_questions[:num_questions]
             
         except Exception as e:
             logger.warning(f"Failed to generate related questions: {e}")
@@ -411,8 +433,17 @@ class ArchitectTools:
 
     def _execute_data_action(self, action: str, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute data-related actions"""
+        user_id_context = context.get('user_id_context')
+        device_id_context = context.get('device_id_context')
+
+        if user_id_context:
+            query = f"For user_id {user_id_context}, {query}"
+        elif device_id_context:
+            query = f"For device_id {device_id_context}, {query}"
+
         if action == "query_data":
-            return self.query_data(query, generate_related=True)
+            num_charts = context.get('num_charts', 5)
+            return self.query_data(query, num_charts=num_charts)
         elif action == "generate_sql":
             return self.generate_sql_query(query)
         elif action == "execute_sql":

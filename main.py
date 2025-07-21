@@ -3,6 +3,10 @@ import logging
 from core.bot import SlackBotHandler
 from core.workflows import PRWorkflows
 from dbos import DBOS, DBOSConfig
+from dotenv import load_dotenv
+import os
+
+load_dotenv(override=True) 
 
 # Configure logging
 logging.basicConfig(

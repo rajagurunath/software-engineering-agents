@@ -127,6 +127,7 @@ class SlackBotHandler:
                 # Send initial response
                 await say(f"🏗️ Starting deep research on: *{research_params['query']}*\n"
                          f"Research type: {research_params.get('type', 'auto-detected')}\n"
+                         f"Generating up to {research_params.get('num_charts', 5)} charts.\n"
                          f"This may take a few minutes...")
                 
                 # Conduct research
@@ -136,7 +137,10 @@ class SlackBotHandler:
                     research_type=research_params.get('type'),
                     thread_id=thread_ts,
                     channel_id=channel,
-                    include_visualizations=research_params.get('include_viz', True)
+                    include_visualizations=research_params.get('num_charts', 5) > 0,
+                    num_charts=research_params.get('num_charts', 5),
+                    user_id_context=research_params.get('user_id_context'),
+                    device_id_context=research_params.get('device_id_context')
                 )
                 
                 # Send results to Slack
@@ -820,27 +824,48 @@ This will:
         """Parse architect command from Slack message"""
         text = text.strip()
         
-        # Check for architect command
         if not text.startswith('ask architect'):
             return None
         
-        # Remove 'ask architect' prefix
         query_text = text[12:].strip()
         
         if not query_text:
             return None
         
-        # Parse optional parameters
         params = {
             'query': query_text,
             'type': None,
-            'include_viz': True
+            'num_charts': 5,  # Default
+            'user_id_context': None,
+            'device_id_context': None,
         }
-        
-        # Check for research type specification
+
+        # Extract UUID and determine if it's a user_id or device_id
+        uuid_match = re.search(r'(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', query_text, re.IGNORECASE)
+        if uuid_match:
+            uuid_str = uuid_match.group('id')
+            # Check for keywords before the UUID to determine context
+            context_window = query_text[:uuid_match.start()]
+            if 'device' in context_window.lower():
+                params['device_id_context'] = uuid_str
+            else: # Default to user_id if no specific context is found
+                params['user_id_context'] = uuid_str
+
+        # Handle chart count first, as it's more specific
+        # Handles --charts=N, --charts N, and typos like --no-charts=N or --no-charts N
+        charts_match = re.search(r'--(?:no-)?charts[=\s](?P<num>\d+)', query_text)
+        if charts_match:
+            params['num_charts'] = int(charts_match.group('num'))
+            query_text = query_text.replace(charts_match.group(0), '').strip()
+        # Handle flags for no charts
+        elif '--no-charts' in query_text or '--no-viz' in query_text:
+            params['num_charts'] = 0
+            query_text = query_text.replace('--no-charts', '').replace('--no-viz', '').strip()
+
+        # Handle research type
         if '--type=' in query_text:
             parts = query_text.split('--type=')
-            params['query'] = parts[0].strip()
+            query_text = parts[0].strip()
             type_part = parts[1].split()[0]
             
             try:
@@ -848,10 +873,7 @@ This will:
             except ValueError:
                 pass  # Invalid type, will auto-detect
         
-        # Check for visualization flag
-        if '--no-viz' in query_text:
-            params['include_viz'] = False
-            params['query'] = params['query'].replace('--no-viz', '').strip()
+        params['query'] = query_text.strip()
         
         return params
 

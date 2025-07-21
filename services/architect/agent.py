@@ -244,7 +244,10 @@ Always provide thorough, evidence-based analysis that helps users make informed 
         context = {
             "user_id": request.user_id,
             "thread_id": request.thread_id,
-            "channel_id": request.channel_id
+            "channel_id": request.channel_id,
+            "num_charts": request.num_charts,
+            "user_id_context": request.user_id_context,
+            "device_id_context": request.device_id_context
         }
         
         for step in plan.steps:
@@ -266,7 +269,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
                 executed_steps.append(step)
                 
                 # Add small delay between steps to avoid overwhelming services
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(2)
                 
             except Exception as e:
                 logger.error(f"Step {step.step_id} failed: {e}")
@@ -362,6 +365,8 @@ Always provide thorough, evidence-based analysis that helps users make informed 
             logger.error(f"Failed to generate summary: {e}")
             executive_summary = f"Research completed for: {request.query}. Please review detailed findings below."
         
+        await asyncio.sleep(2)
+
         # Generate recommendations
         recommendations_prompt = RECOMMENDATIONS_PROMPT.format(
             query=request.query,

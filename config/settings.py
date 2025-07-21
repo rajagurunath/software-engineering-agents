@@ -1,11 +1,12 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
+import os
 
 class Settings(BaseSettings):
     # Slack Configuration
     slack_bot_token: str = Field(..., env="SLACK_BOT_TOKEN")
     slack_app_token: str = Field(..., env="SLACK_APP_TOKEN")
-    slack_signing_secret: str = Field(..., env="SLACK_APP_TOKEN")
+    slack_signing_secret: str = Field(..., env="SLACK_SIGNING_SECRET")
 
     # slack_sql_bot_token: str = Field(..., env="SLACK_SQL_BOT_TOKEN")
     # slack_sql_app_token: str = Field(..., env="SLACK_SQL_APP_TOKEN")
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     opik_endpoint: str = Field("http://localhost:8123/trace", env="OPIK_ENDPOINT")
 
     # Rag configuration
-    rag_base_url: str = "https://api.intelligence-dev.io.solutions/api/r2r/v3" # Field("https://api.intelligence-dev.io.solutions/api/r2r/v3", env="RAG_BASE_URL")
+    rag_base_url: str = Field("https://api.intelligence-dev.io.solutions/api/r2r/v3", env="RAG_BASE_URL")
     superset_api_url: str = Field("http://localhost:8088", env="SUPERSET_API_URL")
     preset_api_url: str = Field("http://localhost:8088", env="PRESET_API_URL")
     preset_secret: str = Field("preset_api_key", env="PRESET_SECRET")
@@ -60,6 +61,6 @@ class Settings(BaseSettings):
     sentry_project_slug: str = Field(..., env="SENTRY_PROJECT_SLUG")
 
     class Config:
-        env_file = ".env"
+        env_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '../.env'))
 
 settings = Settings()

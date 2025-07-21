@@ -1,4 +1,8 @@
 import os
+import sys
+# Ensure local project root is prioritized for imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+sys.path.insert(0, project_root)
 import requests
 import logging
 from datetime import datetime
@@ -8,7 +12,9 @@ from pixeltable.functions.video import extract_audio
 from pixeltable.functions import whisper
 from config.settings import settings
 from core.integrations.llm_client import LLMClient
-
+from dotenv import load_dotenv
+import asyncio
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 class VideoRAG:
@@ -49,7 +55,7 @@ class VideoRAG:
             )
             
             # Add computed columns if they don't exist
-            existing_columns = [col.name for col in self.video_table.columns]
+            existing_columns = list(self.video_table.columns())  # Fix: columns() returns names
             
             if 'audio_track' not in existing_columns:
                 self.video_table.add_computed_column(
@@ -70,7 +76,7 @@ class VideoRAG:
                 self.video_table = pxt.get_table(self.table_name)
             except:
                 raise Exception(f"Could not create or access video table: {e}")
-    
+
     async def process_video(self, video_path: str, user_id: str) -> Dict[str, Any]:
         """
         Process video file and extract insights using vision model.
@@ -83,13 +89,21 @@ class VideoRAG:
             Dictionary with video analysis results
         """
         try:
+            # Validate video file before inserting
+            import mimetypes
+            mime_type, _ = mimetypes.guess_type(video_path)
+            if not mime_type or not mime_type.startswith('video/'):
+                raise ValueError(f"Not a valid video: {video_path}")
+            if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+                raise ValueError(f"Video file missing or empty: {video_path}")
+
             # Insert video into table
             current_time = datetime.now()
-            self.video_table.insert({
+            self.video_table.insert([{
                 'video': video_path,
                 'user_id': user_id,
                 'timestamp': current_time
-            })
+            }])
             
             # Get transcription
             result = self.video_table.select(
@@ -257,3 +271,27 @@ async def process_video_with_rag(video_info: Dict[str, Any]) -> Optional[Dict[st
         if os.path.exists(video_info.get('local_path', '')):
             os.remove(video_info['local_path'])
         return None
+    
+
+async def process_slack_video_event1(event_json) -> Optional[Dict[str, Any]]:
+    """
+    Process a Slack event JSON containing a video message.
+    Downloads the video file, saves it, and processes using VideoRAG.
+    
+    Args:
+        event_json: Slack event JSON
+        
+    Returns:
+        Dictionary with processing results or None if not a video event
+    """
+    video_info = process_slack_video_event(event_json)  # Call synchronously
+    if video_info:
+        result = await process_video_with_rag(video_info)
+        print(result)
+    else:
+        print("No video event found.")
+
+if __name__ == "__main__":
+    # Example usage
+    example_event= {}
+    asyncio.run(process_slack_video_event1(example_event))

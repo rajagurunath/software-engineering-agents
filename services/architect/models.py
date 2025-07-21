@@ -61,3 +61,6 @@ class ArchitectRequest(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     include_visualizations: bool = True
     max_research_steps: int = 10
+    num_charts: int = 5
+    user_id_context: Optional[str] = None
+    device_id_context: Optional[str] = None

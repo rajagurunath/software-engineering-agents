@@ -31,7 +31,10 @@ class ArchitectService:
         channel_id: Optional[str] = None,
         priority: str = "medium",
         include_visualizations: bool = True,
-        max_research_steps: int = 10
+        max_research_steps: int = 10,
+        num_charts: int = 5,
+        user_id_context: Optional[str] = None,
+        device_id_context: Optional[str] = None
     ) -> ResearchResult:
         """
         Conduct comprehensive research on the given query
@@ -65,7 +68,10 @@ class ArchitectService:
                 channel_id=channel_id,
                 priority=priority,
                 include_visualizations=include_visualizations,
-                max_research_steps=max_research_steps
+                max_research_steps=max_research_steps,
+                num_charts=num_charts,
+                user_id_context=user_id_context,
+                device_id_context=device_id_context
             )
             
             # Conduct research
