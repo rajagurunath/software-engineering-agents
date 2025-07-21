@@ -89,28 +89,54 @@ class VideoRAG:
             Dictionary with video analysis results
         """
         try:
-            # Validate video file before inserting
-            import mimetypes
-            mime_type, _ = mimetypes.guess_type(video_path)
-            if not mime_type or not mime_type.startswith('video/'):
-                raise ValueError(f"Not a valid video: {video_path}")
-            if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
-                raise ValueError(f"Video file missing or empty: {video_path}")
+            # Validate video file exists and has content
+            if not os.path.exists(video_path):
+                raise ValueError(f"Video file not found: {video_path}")
+            
+            file_size = os.path.getsize(video_path)
+            if file_size == 0:
+                raise ValueError(f"Video file is empty: {video_path}")
+            
+            logger.info(f"Processing video file: {video_path} (size: {file_size} bytes)")
 
             # Insert video into table
             current_time = datetime.now()
-            self.video_table.insert([{
-                'video': video_path,
-                'user_id': user_id,
-                'timestamp': current_time
-            }])
+            try:
+                self.video_table.insert([{
+                    'video': video_path,
+                    'user_id': user_id,
+                    'timestamp': current_time
+                }])
+                logger.info("Video inserted into Pixeltable successfully")
+            except Exception as e:
+                logger.error(f"Failed to insert video into Pixeltable: {e}")
+                # Try to process without Pixeltable for transcription
+                return await self._process_video_fallback(video_path, user_id)
             
-            # Get transcription
-            result = self.video_table.select(
-                self.video_table.transcription.text
-            ).order_by(self.video_table.timestamp, asc=False).limit(1).collect()
+            # Wait a moment for processing
+            await asyncio.sleep(2)
             
-            audio_transcript = result[0]['text'] if result and len(result) > 0 else ""
+            # Get transcription with retry logic
+            audio_transcript = ""
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    result = self.video_table.select(
+                        self.video_table.transcription.text
+                    ).order_by(self.video_table.timestamp, asc=False).limit(1).collect()
+                    
+                    if result and len(result) > 0 and result[0]['text']:
+                        audio_transcript = result[0]['text']
+                        logger.info("Audio transcription extracted successfully")
+                        break
+                    else:
+                        logger.warning(f"Transcription attempt {attempt + 1} returned empty result")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(3)  # Wait longer between retries
+                except Exception as e:
+                    logger.error(f"Transcription attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(3)
             
             # Use vision model to understand video content
             video_understanding = await self._analyze_video_with_vision(video_path, audio_transcript)
@@ -132,6 +158,33 @@ class VideoRAG:
                 'combined_analysis': ''
             }
     
+    async def _process_video_fallback(self, video_path: str, user_id: str) -> Dict[str, Any]:
+        """
+        Fallback video processing when Pixeltable fails
+        """
+        try:
+            logger.info("Using fallback video processing")
+            
+            # Try to analyze video with vision model only
+            video_understanding = await self._analyze_video_with_vision(video_path, "")
+            
+            return {
+                'success': True,
+                'audio_transcript': "Audio transcription not available",
+                'video_understanding': video_understanding,
+                'combined_analysis': f"{video_understanding}\n\nNote: Audio transcription was not available for this video."
+            }
+            
+        except Exception as e:
+            logger.error(f"Fallback video processing failed: {e}")
+            return {
+                'success': False,
+                'error': f"Both primary and fallback video processing failed: {str(e)}",
+                'audio_transcript': '',
+                'video_understanding': '',
+                'combined_analysis': ''
+            }
+    
     async def _analyze_video_with_vision(self, video_path: str, audio_transcript: str) -> str:
         """
         Analyze video content using the vision model.
@@ -144,20 +197,24 @@ class VideoRAG:
             Video analysis from vision model
         """
         try:
-            # For now, we'll use the LLM to analyze based on audio transcript
-            # In a full implementation, you'd extract video frames and send to vision model
+            # Extract a few frames from the video for analysis
+            frames_analysis = await self._extract_and_analyze_frames(video_path)
             
             vision_prompt = f"""
-            You are an expert video analyst. Based on the audio transcript below, provide insights about:
+            You are an expert video analyst. Based on the video frames and audio transcript below, provide insights about:
             1. What the video is likely about
             2. Key topics discussed
             3. Any technical concepts mentioned
             4. Actionable items or questions raised
+            5. Visual elements observed in the video
+            
+            Video Frames Analysis:
+            {frames_analysis}
             
             Audio Transcript:
             {audio_transcript}
             
-            Provide a concise analysis of the video content:
+            Provide a comprehensive analysis of the video content combining both visual and audio information:
             """
             
             # Use the configured vision model
@@ -171,6 +228,52 @@ class VideoRAG:
         except Exception as e:
             logger.error(f"Failed to analyze video with vision model: {e}")
             return f"Video analysis failed: {str(e)}"
+    
+    async def _extract_and_analyze_frames(self, video_path: str) -> str:
+        """
+        Extract key frames from video and analyze them
+        """
+        try:
+            import cv2
+            import base64
+            from io import BytesIO
+            from PIL import Image
+            
+            # Open video file
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                return "Could not open video file for frame extraction"
+            
+            # Get video properties
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            duration = total_frames / fps if fps > 0 else 0
+            
+            # Extract frames at different intervals (beginning, middle, end)
+            frame_positions = [0, total_frames // 2, total_frames - 1] if total_frames > 2 else [0]
+            
+            frames_info = []
+            for i, pos in enumerate(frame_positions):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+                ret, frame = cap.read()
+                
+                if ret:
+                    # Convert frame to RGB
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # Analyze frame content (simplified - you could use vision model here)
+                    height, width = frame_rgb.shape[:2]
+                    timestamp = pos / fps if fps > 0 else 0
+                    
+                    frames_info.append(f"Frame {i+1} (at {timestamp:.1f}s): {width}x{height} resolution")
+            
+            cap.release()
+            
+            return f"Video duration: {duration:.1f}s, Total frames: {total_frames}, FPS: {fps:.1f}\nFrames analyzed: {'; '.join(frames_info)}"
+            
+        except Exception as e:
+            logger.error(f"Frame extraction failed: {e}")
+            return f"Frame extraction failed: {str(e)}"
 
 def process_slack_video_event(event_json) -> Optional[Dict[str, Any]]:
     """

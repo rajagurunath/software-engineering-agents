@@ -509,16 +509,16 @@ This will:
                         channel = event.get('channel')
                         
                         try:
+                            await self.app.client.chat_postMessage(
+                                channel=channel, 
+                                text=f"🎥 Video detected! Processing... This may take a moment.", 
+                                thread_ts=ts
+                            )
+                            
                             # Download and prepare video
                             video_info = process_slack_video_event(body)
                             
                             if video_info and video_info.get('success'):
-                                await self.app.client.chat_postMessage(
-                                    channel=channel, 
-                                    text=f"🎥 Processing video... This may take a moment.", 
-                                    thread_ts=ts
-                                )
-                                
                                 # Process video with RAG
                                 video_result = await process_video_with_rag(video_info)
                                 
