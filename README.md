@@ -20,6 +20,36 @@ With the help of **io.net io intelligence**, you can access open-source models a
 
 ---
 
+---
+## High level overview of the Hackathon project
+
+![](docs/10x-engineer.png)
+- **By integerating with the io.net, Make your engineers 10x more productivityand let them enjoy their life in the free time** :) 
+
+![](docs/software-engineer-workflow.png)
+- End to end capabilities of the software agents
+
+
+## 🤖 Multi-Bot Architecture
+
+The system supports **5 specialized Slack bots**, each with dedicated capabilities and identities. For detailed documentation, see [**Core Module Documentation**](./core/README.md).
+
+### Quick Overview
+- 🏗️ **Architect Agent** - Deep research, data analysis, documentation
+- 👨‍💻 **Developer Agent** - PR reviews, code creation, GitHub integration  
+- 📊 **Data Analyst Agent** - SQL queries, reports, visualizations
+- 🚨 **Sentry Agent** - Error debugging, log analysis, monitoring
+- 🤖 **Main Dispatcher** - File processing, coordination, help
+
+### Architecture Benefits
+- **Specialized Identity**: Each agent appears as distinct bot in Slack
+- **Modular Design**: Independent deployment and scaling
+- **Clear Separation**: No command conflicts between agents
+- **Better UX**: Users can directly mention specific agents
+- **Maintainable**: Self-contained logic per agent
+
+---
+
 ## Why io.net?
 
 **io.net** is central to this repository's philosophy and architecture:
@@ -44,7 +74,9 @@ With the help of **io.net io intelligence**, you can access open-source models a
 | **Data Analyst**       | - Analyze data, generate reports, provide insights<br>- Create dashboards and visualizations                                                                           |
 | **Sentry Agent**       | - Monitor applications<br>- Detect issues<br>- Provide alerts                                                                                                         |
 
----
+
+
+
 
 ## System Architecture
 
@@ -65,17 +97,41 @@ Architect --> Sentry
 
 ---
 
-## End-to-End Workflow
+## High-Level System Flow
+
+This diagram illustrates the end-to-end request lifecycle, from the user's message in Slack to the agent's response.
 
 ```mermaid
-flowchart TD
-A["Data Preparation"] --> B["Web & Data Schema Scraping"]
-B --> C["Indexing & Embedding"]
-C --> D["Deploy Agents (Slack Bots)"]
-D --> E["Monitor & Trace Performance"]
-E --> F["Collect & Annotate Prompts"]
-F --> G["Fine-tune RAG Dataset / Model"]
-G --> D
+graph TD
+    subgraph User & Slack
+        User[Slack User] --> SlackAPI[Slack API]
+    end
+
+    subgraph Agent Backend (Hosted on io.net)
+        style AgentBackend fill:#f9f9f9,stroke:#333,stroke-width:2px
+        Bots[Multi-Bot System] --> Workflows[Durable Workflows (DBOS)]
+        Workflows --> Services[Agent Services <br/>(Architect, Developer, Data)]
+        Services --> Clients[API Clients <br/>(GitHub, LLM, RAG)]
+    end
+
+    subgraph External Services & Data
+        style ExternalServices fill:#f0f8ff,stroke:#333,stroke-width:2px
+        GitHub[GitHub API]
+        LLM[LLM Provider <br/>(io.net Intelligence)]
+        RAG[RAG System <br/>(Vector DB, Preset DB)]
+    end
+
+    SlackAPI -- Event --> Bots
+    Clients --> GitHub
+    Clients --> LLM
+    Clients --> RAG
+    
+    RAG --> Clients
+    GitHub --> Clients
+    LLM --> Clients
+    
+    Bots -- Response --> SlackAPI
+    SlackAPI --> User
 ```
 *The workflow is cyclical, enabling continuous self-improvement of the agent ecosystem.*
 
@@ -87,11 +143,53 @@ G --> D
 
 For detailed diagrams of the various workflows, please see the following README files:
 
-- [**Core Module**](./core/README.md): Illustrates the Slack Bolt communication flow.
+- [**Core Module**](./core/README.md): **Multi-bot architecture, setup guide, and communication flows**
 - [**Architect Agent**](./services/architect/README.md): Shows the workflow of the Architect Agent.
 - [**Developer Services**](./services/developer/README.md): Contains diagrams for the PR review and PR creation workflows.
 - [**Data Support Services**](./services/data_support/README.md): Illustrates the IODatabot workflow.
 - [**Slack Setup**](./slack_setup/README.md): Provides detailed instructions for setting up the Slack bot.
+- [**RAG System**](./rag/README.md): Explains the audio and video RAG workflows.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Setup Multi-Bot System
+```bash
+# Clone and install
+git clone <repository>
+pip install -r requirements.txt
+
+# Configure environment (see core/README.md for details)
+cp .env.example .env
+# Add your Slack tokens for each bot
+
+# Run all specialized bots
+python multi_bot_main.py
+```
+
+### 2. Create Slack Applications
+For detailed setup instructions, see [**Core Module Documentation**](./core/README.md#setup-and-configuration).
+
+You'll need to create **5 separate Slack Apps** and configure tokens for each agent.
+
+### 3. Basic Usage
+```bash
+# Research and analysis
+ask architect How is the network performing?
+
+# Code management  
+review pr https://github.com/owner/repo/pull/123
+
+# Data analysis
+analyze data How many devices are online?
+
+# Error debugging
+handle sentry  # Use in Sentry alert threads
+
+# Get help
+help  # Shows all available commands
+```
 
 ---
 
@@ -127,7 +225,18 @@ Currently, all these agents are accessible from **Slack**. By using these agents
 
 ---
 ## Deploy Agents Team
-- Create a Slack bot and provide the API key for each bot.
+
+### Multi-Bot Deployment (Recommended)
+```bash
+python multi_bot_main.py
+```
+
+### Single Bot Deployment (Legacy)
+```bash
+python slack_bot_main.py
+```
+
+For detailed setup instructions, see [**Core Module Documentation**](./core/README.md).
 
 ---
 
@@ -143,4 +252,23 @@ Currently, all these agents are accessible from **Slack**. By using these agents
 
 ---
 
+## 📚 Documentation Structure
+
+- [**Main README**](./README.md) - Overview and quick start
+- [**Core Module**](./core/README.md) - **Multi-bot architecture and setup** ⭐
+- [**Architect Service**](./services/architect/README.md) - Research agent workflows
+- [**Developer Services**](./services/developer/README.md) - PR and code workflows  
+- [**Data Support**](./services/data_support/README.md) - Data analysis workflows
+- [**Slack Setup**](./slack_setup/README.md) - Slack bot configuration
+- [**RAG System**](./rag/README.md) - Retrieval and indexing
+
+---
+
 *More documentation and details will be added soon.*
+
+
+## More details kindly refer the existing PRs which are documented by the Agents
+- https://github.com/rajagurunath/software-engineering-agents/pull/2
+- https://github.com/rajagurunath/software-engineering-agents/pull/3
+- https://github.com/rajagurunath/software-engineering-agents/pull/4
+

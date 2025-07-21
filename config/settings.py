@@ -8,9 +8,25 @@ class Settings(BaseSettings):
     slack_app_token: str = Field(..., env="SLACK_APP_TOKEN")
     slack_signing_secret: str = Field(..., env="SLACK_SIGNING_SECRET")
 
-    # slack_sql_bot_token: str = Field(..., env="SLACK_SQL_BOT_TOKEN")
-    # slack_sql_app_token: str = Field(..., env="SLACK_SQL_APP_TOKEN")
-    # slack_sql_signing_secret: str = Field(..., env="SLACK_SQL_SIGNING_SECRET")
+    # Architect Bot Configuration
+    slack_architect_bot_token: str = Field(..., env="SLACK_ARCHITECT_BOT_TOKEN")
+    slack_architect_app_token: str = Field(..., env="SLACK_ARCHITECT_APP_TOKEN")
+    slack_architect_signing_secret: str = Field(..., env="SLACK_ARCHITECT_SIGNING_SECRET")
+    
+    # Developer Bot Configuration
+    slack_developer_bot_token: str = Field(..., env="SLACK_DEVELOPER_BOT_TOKEN")
+    slack_developer_app_token: str = Field(..., env="SLACK_DEVELOPER_APP_TOKEN")
+    slack_developer_signing_secret: str = Field(..., env="SLACK_DEVELOPER_SIGNING_SECRET")
+    
+    # Data Analyst Bot Configuration
+    slack_data_analyst_bot_token: str = Field(..., env="SLACK_DATA_ANALYST_BOT_TOKEN")
+    slack_data_analyst_app_token: str = Field(..., env="SLACK_DATA_ANALYST_APP_TOKEN")
+    slack_data_analyst_signing_secret: str = Field(..., env="SLACK_DATA_ANALYST_SIGNING_SECRET")
+    
+    # Sentry Bot Configuration
+    slack_sentry_bot_token: str = Field(..., env="SLACK_SENTRY_BOT_TOKEN")
+    slack_sentry_app_token: str = Field(..., env="SLACK_SENTRY_APP_TOKEN")
+    slack_sentry_signing_secret: str = Field(..., env="SLACK_SENTRY_SIGNING_SECRET")
 
     sql_bot_url: str = Field(..., env="SQL_BOT_URL")
     

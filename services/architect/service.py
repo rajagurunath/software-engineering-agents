@@ -113,20 +113,21 @@ class ArchitectService:
         """Get the full research result by ID"""
         return self.active_research.get(research_id)
 
-    async def quick_data_analysis(self, question: str, user_id: str) -> Dict[str, Any]:
+    async def quick_data_analysis(self, question: str, user_id: str, num_charts=1) -> Dict[str, Any]:
         """
         Perform quick data analysis without full research workflow
         """
         try:
-            result = self.agent.tools.query_data(question)
-            
+            result = self.agent.tools.query_data(question, num_charts=num_charts)
+            print(result)
             if result["success"]:
                 return {
                     "success": True,
-                    "answer": result["data"]["answer"],
-                    "plotly_json": result["data"].get("plotly_json"),
+                    "answer": result["data"]["main_result"]["data"],
+                    "plotly_json": result["data"]["main_result"].get("plotly_json"),
                     "query": question,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
+                    "followup_questions": result["data"]["main_result"].get("followup_questions", []),
                 }
             else:
                 return result
