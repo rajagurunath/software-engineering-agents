@@ -1,40 +1,21 @@
-import asyncio
-import logging
-from core.bot import SlackBotHandler
-from core.workflows import PRWorkflows
-from dbos import DBOS, DBOSConfig
+from fastapi import FastAPI
+from services.copilot import router as copilot_router
 from dotenv import load_dotenv
-import os
+import uvicorn
 
-load_dotenv(override=True) 
+load_dotenv(override=True)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+app = FastAPI(
+    title="Agent Team API",
+    description="API for all agent services",
+    version="0.1.0"
 )
 
-logger = logging.getLogger(__name__)
+app.include_router(copilot_router.router)
 
-async def main():
-    """Main application entry point"""
-    logger.info("Starting Slack Bot System")
-    
-    # Initialize DBOS
-    config: DBOSConfig= dict(
-        name="kkk",
-        database_url="postgresql://postgres:postgres@localhost:5432/agent_team",
-
-        # Add other DBOS configuration as needed
-    )
-    DBOS(config=config)
-    DBOS.launch()
-    
-    # Initialize and start the bot
-    bot_handler = SlackBotHandler()
-    
-    # Start the bot
-    await bot_handler.start()
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Agent Team API"}
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(app, host="0.0.0.0", port=8000)

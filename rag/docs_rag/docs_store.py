@@ -176,6 +176,7 @@ class RagAssistant:
             )
             
             logger.info(f"Retrieved {len(search_result)} results from Qdrant.")
+            logger.debug(f"Qdrant search results: {search_result}")
             
             # Normalize Qdrant results to common format
             normalized_results = []
@@ -190,10 +191,11 @@ class RagAssistant:
                     "metadata": hit.payload
                 })
             
+            logger.debug(f"Normalized results: {normalized_results}")
             return normalized_results
             
         except Exception as e:
-            logger.error(f"Error during Qdrant search: {e}")
+            logger.error(f"Error during Qdrant search: {e}", exc_info=True)
             return []
     
     def _retrieve_r2r(self, query: str, top_k: int) -> List[Dict[str, Any]]:
