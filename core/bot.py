@@ -20,7 +20,8 @@ import plotly.graph_objects as go
 import tempfile
 import os
 import json
-from rag.multimedia_rag.audio_transcriper import AudioRAG,process_slack_audio_event
+from rag.multimedia_rag.audio_transcriper import process_slack_audio_event
+from rag.multimedia_rag.video_rag import process_slack_video_event, process_video_with_rag
 from pixeltable.functions.video import extract_audio
 from pixeltable.functions import whisper
 import datetime
@@ -460,26 +461,25 @@ This will:
             logger.info(body)
             event = body.get('event', {})
             files = event.get('files', [])
+            
             if event.get('subtype') == 'file_share' and files:
                 for f in files:
                     mimetype = f.get('mimetype', '')
+                    
+                    # Handle audio files
                     if mimetype.startswith('audio/') or mimetype in ['audio/mp4', 'audio/mpeg', 'audio/x-m4a']:
-                        url = f.get('pr')
-                        filename = f.get('name', 'audio_message.mp4')
                         user = event.get('user')
                         ts = event.get('ts')
                         channel = event.get('channel')
-                        slack_token = settings.slack_bot_token
-                        import aiohttp
-                        import tempfile
+                        
                         transcript = None
-                        local_path = None
                         try:
                             transcript = process_slack_audio_event(body)
 
                             if transcript:
                                 await self.app.client.chat_postMessage(channel=channel, text=f"📝 Transcript: {transcript}", thread_ts=ts)
-                                # Pass transcript to architect agent
+                                
+                                # Pass transcript to architect agent for analysis
                                 try:
                                     result = await self.architect_service.conduct_research(
                                         query=transcript,
@@ -490,7 +490,6 @@ This will:
                                         include_visualizations=True
                                     )
                                     await self._send_architect_results(say, result, channel, ts)
-                                    # await self._send_architect_results(self.app.client.chat_postMessage, result, channel, ts)
                                 except Exception as e:
                                     logger.error(f"Architect request from audio transcript failed: {e}")
                                     await self.app.client.chat_postMessage(channel=channel, text=f"❌ Architect agent failed: {str(e)}", thread_ts=ts)
@@ -498,14 +497,100 @@ This will:
                                 await self.app.client.chat_postMessage(channel=channel, text=f"❌ Audio transcription failed.", thread_ts=ts)
                         except Exception as e:
                             logger.error(f"Audio processing error: {e}")
-                        finally:
-                            if local_path and os.path.exists(local_path):
-                                os.remove(local_path)
+                    
+                    # Handle video files
+                    elif mimetype.startswith('video/'):
+                        user = event.get('user')
+                        ts = event.get('ts')
+                        channel = event.get('channel')
+                        
+                        try:
+                            # Download and prepare video
+                            video_info = process_slack_video_event(body)
+                            
+                            if video_info and video_info.get('success'):
+                                await self.app.client.chat_postMessage(
+                                    channel=channel, 
+                                    text=f"🎥 Processing video... This may take a moment.", 
+                                    thread_ts=ts
+                                )
+                                
+                                # Process video with RAG
+                                video_result = await process_video_with_rag(video_info)
+                                
+                                if video_result and video_result.get('success'):
+                                    # Post video understanding first
+                                    understanding_text = f"🎥 **Video Understanding:**\n{video_result['video_understanding']}"
+                                    if video_result.get('audio_transcript'):
+                                        understanding_text += f"\n\n📝 **Audio Transcript:**\n{video_result['audio_transcript']}"
+                                    
+                                    await self.app.client.chat_postMessage(
+                                        channel=channel, 
+                                        text=understanding_text, 
+                                        thread_ts=ts
+                                    )
+                                    
+                                    # Pass combined analysis to architect agent
+                                    combined_query = video_result['combined_analysis']
+                                    if combined_query:
+                                        await self._process_architect_request_from_media(combined_query, user, channel, ts)
+                                else:
+                                    await self.app.client.chat_postMessage(
+                                        channel=channel, 
+                                        text=f"❌ Video processing failed.", 
+                                        thread_ts=ts
+                                    )
+                            else:
+                                await self.app.client.chat_postMessage(
+                                    channel=channel, 
+                                    text=f"❌ Could not process video file.", 
+                                    thread_ts=ts
+                                )
+                                
+                        except Exception as e:
+                            logger.error(f"Video processing error: {e}")
+                            await self.app.client.chat_postMessage(
+                                channel=channel, 
+                                text=f"❌ Video processing error: {str(e)}", 
+                                thread_ts=ts
+                            )
+                            
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger,say):
             logger.info(body)
             user_id = body['event']['assistant_thread']['user_id']
             await say(f"Hello <@{user_id}>, I am your assistant! How can I help you today?")
+
+    async def _process_architect_request_from_media(self, query: str, user_id: str, channel: str, thread_ts: str):
+        """Process architect request from audio/video media"""
+        try:
+            result = await self.architect_service.conduct_research(
+                query=query,
+                user_id=user_id,
+                research_type=None,
+                thread_id=thread_ts,
+                channel_id=channel,
+                include_visualizations=True
+            )
+            await self._send_architect_results(self._create_say_function(channel, thread_ts), result, channel, thread_ts)
+        except Exception as e:
+            logger.error(f"Architect request from media failed: {e}")
+            await self.app.client.chat_postMessage(
+                channel=channel, 
+                text=f"❌ Architect analysis failed: {str(e)}", 
+                thread_ts=thread_ts
+            )
+    
+    def _create_say_function(self, channel: str, thread_ts: str):
+        """Create a say function for architect results"""
+        async def say(text=None, blocks=None):
+            await self.app.client.chat_postMessage(
+                channel=channel,
+                text=text,
+                blocks=blocks,
+                thread_ts=thread_ts
+            )
+        return say
 
     def _parse_structured_pr_command(self, text: str) -> Dict[str, str]:
         """Parse structured PR command with multiple format support"""

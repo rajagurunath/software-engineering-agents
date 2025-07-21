@@ -156,7 +156,4 @@ dependencies = [
     "zipp==3.23.0",
     "pydantic-ai>=0.0.14",
     "markdown>=3.8.2",
-    "whisperx>=3.4.2",
-    "pixeltable>=0.4.4",
-    "spacy>=3.8.7",
 ]
