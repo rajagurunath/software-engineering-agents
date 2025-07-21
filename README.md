@@ -103,33 +103,33 @@ This diagram illustrates the end-to-end request lifecycle, from the user's messa
 
 ```mermaid
 graph TD
-    subgraph User & Slack
+    subgraph User_and_Slack
         User[Slack User] --> SlackAPI[Slack API]
     end
 
-    subgraph Agent Backend (Hosted on io.net)
-        style AgentBackend fill:#f9f9f9,stroke:#333,stroke-width:2px
-        Bots[Multi-Bot System] --> Workflows[Durable Workflows (DBOS)]
-        Workflows --> Services[Agent Services <br/>(Architect, Developer, Data)]
-        Services --> Clients[API Clients <br/>(GitHub, LLM, RAG)]
+    subgraph Agent_Backend
+        style Agent_Backend fill:#f9f9f9,stroke:#333,stroke-width:2px
+        Bots[Multi-Bot System] --> Workflows[Durable Workflows - DBOS]
+        Workflows --> Services[Agent Services - Architect, Developer, Data]
+        Services --> Clients[API Clients - GitHub, LLM, RAG]
     end
 
-    subgraph External Services & Data
-        style ExternalServices fill:#f0f8ff,stroke:#333,stroke-width:2px
+    subgraph External_Services_and_Data
+        style External_Services_and_Data fill:#f0f8ff,stroke:#333,stroke-width:2px
         GitHub[GitHub API]
-        LLM[LLM Provider <br/>(io.net Intelligence)]
-        RAG[RAG System <br/>(Vector DB, Preset DB)]
+        LLM[LLM Provider - io.net Intelligence]
+        RAG[RAG System - Vector DB, Preset BI Tool]
     end
 
     SlackAPI -- Event --> Bots
     Clients --> GitHub
     Clients --> LLM
     Clients --> RAG
-    
+
     RAG --> Clients
     GitHub --> Clients
     LLM --> Clients
-    
+
     Bots -- Response --> SlackAPI
     SlackAPI --> User
 ```
@@ -267,8 +267,9 @@ For detailed setup instructions, see [**Core Module Documentation**](./core/READ
 *More documentation and details will be added soon.*
 
 
-## More details kindly refer the existing PRs which are documented by the Agents
+## More details kindly refer the existing PRs which are documented by the Agents (for incremental improvements):
 - https://github.com/rajagurunath/software-engineering-agents/pull/2
 - https://github.com/rajagurunath/software-engineering-agents/pull/3
 - https://github.com/rajagurunath/software-engineering-agents/pull/4
+- https://github.com/rajagurunath/software-engineering-agents/pull/5
 
