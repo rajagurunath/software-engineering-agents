@@ -148,6 +148,7 @@ For detailed diagrams of the various workflows, please see the following README 
 - [**Developer Services**](./services/developer/README.md): Contains diagrams for the PR review and PR creation workflows.
 - [**Data Support Services**](./services/data_support/README.md): Illustrates the IODatabot workflow.
 - [**Slack Setup**](./slack_setup/README.md): Provides detailed instructions for setting up the Slack bot.
+- [**RAG System**](./rag/README.md): Explains the audio and video RAG workflows.
 
 ---
 
@@ -264,3 +265,10 @@ For detailed setup instructions, see [**Core Module Documentation**](./core/READ
 ---
 
 *More documentation and details will be added soon.*
+
+
+## More details kindly refer the existing PRs which are documented by the Agents
+- https://github.com/rajagurunath/software-engineering-agents/pull/2
+- https://github.com/rajagurunath/software-engineering-agents/pull/3
+- https://github.com/rajagurunath/software-engineering-agents/pull/4
+
