@@ -44,6 +44,7 @@ class ResearchResult(BaseModel):
     detailed_findings: List[Dict[str, Any]]
     recommendations: List[str]
     data_visualizations: List[Dict[str, Any]] = []  # Plotly graphs
+    data_analysis_results: List[Dict[str, Any]] = []  # Enhanced data results
     code_analysis: Optional[Dict[str, Any]] = None
     documentation_insights: Optional[Dict[str, Any]] = None
     html_report_path: Optional[str] = None

@@ -78,13 +78,16 @@ RECOMMENDATIONS_PROMPT = """Based on the research findings, provide 3-7 specific
 RESEARCH QUERY: {query}
 FINDINGS: {findings}
 
-Each recommendation should:
-- Be specific and actionable
-- Include rationale based on the findings
-- Consider io.net's decentralized GPU network context
-- Address different stakeholders (developers, operators, users)
+CRITICAL REQUIREMENTS for recommendations:
+1. Keep recommendations SHORT and ACTIONABLE (max 2 sentences each)
+2. ALWAYS check if the recommendation is already implemented in io.net
+3. If already implemented, mention: "✅ Already implemented" 
+4. If not implemented, mention: "🚀 Recommended for implementation"
+5. If needs brainstorming, mention: "💡 Requires further analysis"
+6. Focus on NEW insights or improvements, not existing features
+7. Prioritize recommendations that add immediate value
 
-Format as a numbered list with brief explanations.
+Format as a numbered list with status indicators.
 
 Recommendations:
 """
@@ -135,14 +138,14 @@ Focus on:
 Provide specific documentation areas to explore:
 """
 
-HTML_REPORT_TEMPLATE = """
-<!DOCTYPE html>
+HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IO.NET Research Report - {title}</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -188,6 +191,11 @@ HTML_REPORT_TEMPLATE = """
             padding: 15px;
             border: 1px solid #e1e5e9;
             border-radius: 6px;
+            background: white;
+        }}
+        .visualization h3 {{
+            margin-top: 0;
+            color: #2c3e50;
         }}
         .metadata {{
             background: #f8f9fa;
@@ -214,6 +222,67 @@ HTML_REPORT_TEMPLATE = """
         .tool-coding {{ background: #ffeaa7; color: #2d3436; }}
         .tool-data {{ background: #74b9ff; color: white; }}
         .tool-docs {{ background: #00b894; color: white; }}
+        .markdown-content {{
+            line-height: 1.6;
+        }}
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 {{
+            color: #2c3e50;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }}
+        .markdown-content code {{
+            background: #f1f2f6;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }}
+        .markdown-content pre {{
+            background: #f1f2f6;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }}
+        .markdown-content blockquote {{
+            border-left: 4px solid #3498db;
+            margin: 0;
+            padding-left: 20px;
+            color: #666;
+        }}
+        .markdown-content ul, .markdown-content ol {{
+            padding-left: 20px;
+        }}
+        .markdown-content table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }}
+        .markdown-content th, .markdown-content td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }}
+        .markdown-content th {{
+            background-color: #f2f2f2;
+        }}
+        .status-implemented {{ color: #10b981; }}
+        .status-recommended {{ color: #3498db; }}
+        .status-analysis {{ color: #f39c12; }}
+        .question-chart-pair {{
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: #fafbfc;
+        }}
+        .question-title {{
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #e8f4fd;
+            border-radius: 6px;
+        }}
     </style>
 </head>
 <body>
@@ -226,21 +295,27 @@ HTML_REPORT_TEMPLATE = """
 
     <div class="section executive-summary">
         <h2>📋 Executive Summary</h2>
-        <p>{executive_summary}</p>
+        <div class="markdown-content" id="executive-summary-content">
+            {executive_summary}
+        </div>
     </div>
 
     <div class="section recommendations">
         <h2>💡 Recommendations</h2>
-        <ol>
+        <div class="markdown-content" id="recommendations-content">
             {recommendations_html}
-        </ol>
+        </div>
     </div>
+
+    {data_analysis_section}
 
     {visualizations_html}
 
     <div class="section">
         <h2>🔍 Detailed Findings</h2>
-        {detailed_findings_html}
+        <div class="markdown-content">
+            {detailed_findings_html}
+        </div>
     </div>
 
     <div class="section">
@@ -252,6 +327,25 @@ HTML_REPORT_TEMPLATE = """
             <p><strong>Tools Used:</strong> {tools_used}</p>
         </div>
     </div>
+
+    <script>
+        // Render markdown content
+        function renderMarkdown() {{
+            const summaryElement = document.getElementById('executive-summary-content');
+            if (summaryElement) {{
+                summaryElement.innerHTML = marked.parse(summaryElement.textContent);
+            }}
+            
+            const recElement = document.getElementById('recommendations-content');
+            if (recElement) {{
+                recElement.innerHTML = marked.parse(recElement.textContent);
+            }}
+        }}
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {{
+            renderMarkdown();
+        }});
+    </script>
 </body>
-</html>
-"""
+</html>"""

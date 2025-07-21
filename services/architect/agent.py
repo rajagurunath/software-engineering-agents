@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from pydantic_ai.providers.openai import OpenAIProvider
 from pathlib import Path
 import tempfile
-import plotly.io as pio
+import markdown
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIModel
@@ -39,11 +39,6 @@ class ArchitectAgent:
         self.tools = ArchitectTools()
         
         # Initialize PydanticAI agent
-        # self.model = OpenAIModel(
-        #     model_name=settings.io_model,
-        #     # api_key=settings.iointelligence_api_key,
-        #     # base_url=settings.openai_base_url,
-        # )
         self.model = OpenAIModel(
                 model_name=settings.io_model,
                 provider=OpenAIProvider(base_url= settings.openai_base_url, api_key=settings.iointelligence_api_key),
@@ -64,7 +59,7 @@ class ArchitectAgent:
         
         self.summarizer_agent = Agent(
             model=self.model,
-            system_prompt="You are an expert at creating executive summaries and recommendations.",
+            system_prompt="You are an expert at creating executive summaries and actionable recommendations. Always use markdown formatting for better readability.",
             retries=2
         )
 
@@ -291,6 +286,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
         visualizations = []
         code_analysis = None
         documentation_insights = None
+        data_analysis_results = []
         
         for step in executed_steps:
             if step.result and step.result.get("success"):
@@ -304,14 +300,45 @@ Always provide thorough, evidence-based analysis that helps users make informed 
                 }
                 findings.append(step_finding)
                 
-                # Extract visualizations
-                if "plotly_json" in step.result.get("data", {}):
+                # Handle data analysis results with multiple charts
+                if step.tool_type == ToolType.DATA and "main_result" in step.result.get("data", {}):
+                    data_result = step.result["data"]
+                    
+                    # Main question chart
+                    main_result = data_result["main_result"]
+                    if main_result.get("plotly_json"):
+                        visualizations.append({
+                            "title": f"Main Analysis: {data_result['main_question']}",
+                            "plotly_json": main_result["plotly_json"],
+                            "step_id": step.step_id,
+                            "question": data_result["main_question"],
+                            "sql_query": main_result.get("sql_query", ""),
+                            "row_count": main_result.get("row_count", 0)
+                        })
+                    
+                    # Related questions charts
+                    for related in data_result.get("related_analysis", []):
+                        if related["result"].get("plotly_json"):
+                            visualizations.append({
+                                "title": f"Related Analysis: {related['question']}",
+                                "plotly_json": related["result"]["plotly_json"],
+                                "step_id": step.step_id,
+                                "question": related["question"],
+                                "sql_query": related["result"].get("sql_query", ""),
+                                "row_count": related["result"].get("row_count", 0)
+                            })
+                    
+                    data_analysis_results.append(data_result)
+                
+                # Handle single chart data results (backward compatibility)
+                elif "plotly_json" in step.result.get("data", {}):
                     plotly_json = step.result["data"]["plotly_json"]
                     if plotly_json:
                         visualizations.append({
                             "title": f"Data Analysis: {step.query}",
                             "plotly_json": plotly_json,
-                            "step_id": step.step_id
+                            "step_id": step.step_id,
+                            "question": step.query
                         })
                 
                 # Categorize findings
@@ -359,6 +386,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
             detailed_findings=findings,
             recommendations=recommendations,
             data_visualizations=visualizations,
+            data_analysis_results=data_analysis_results,
             code_analysis=code_analysis,
             documentation_insights=documentation_insights,
             total_duration_seconds=total_duration
@@ -367,10 +395,42 @@ Always provide thorough, evidence-based analysis that helps users make informed 
     async def _generate_html_report(self, result: ResearchResult) -> str:
         """Generate an HTML report with embedded visualizations"""
         try:
+            # Prepare data analysis section with question-chart pairs
+            data_analysis_section = ""
+            if result.data_visualizations:
+                data_analysis_section = '<div class="section"><h2>📊 Data Analysis</h2>'
+                
+                for i, viz in enumerate(result.data_visualizations):
+                    viz_id = f"viz-{i}"
+                    question = viz.get("question", "Data Analysis")
+                    sql_query = viz.get("sql_query", "")
+                    row_count = viz.get("row_count", 0)
+                    
+                    data_analysis_section += f'''
+                    <div class="question-chart-pair">
+                        <div class="question-title">
+                            📈 {question}
+                        </div>
+                        <div class="visualization">
+                            <div id="{viz_id}" style="width:100%;height:500px;"></div>
+                            <div style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                                <strong>Records Found:</strong> {row_count} | 
+                                <strong>SQL:</strong> <code style="font-size: 0.8em;">{sql_query[:100]}{'...' if len(sql_query) > 100 else ''}</code>
+                            </div>
+                            <script>
+                                Plotly.newPlot('{viz_id}', {viz["plotly_json"]}, {{}}, {{responsive: true}});
+                            </script>
+                        </div>
+                    </div>
+                    '''
+                
+                data_analysis_section += '</div>'
+            
             # Prepare visualizations HTML
             visualizations_html = ""
-            if result.data_visualizations:
-                visualizations_html = '<div class="section"><h2>📊 Data Visualizations</h2>'
+            if result.data_visualizations and not data_analysis_section:
+                # Fallback for single visualizations
+                visualizations_html = '<div class="section"><h2>📊 Additional Visualizations</h2>'
                 
                 for i, viz in enumerate(result.data_visualizations):
                     viz_id = f"viz-{i}"
@@ -379,7 +439,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
                         <h3>{viz["title"]}</h3>
                         <div id="{viz_id}"></div>
                         <script>
-                            Plotly.newPlot('{viz_id}', {viz["plotly_json"]});
+                            Plotly.newPlot('{viz_id}', {viz["plotly_json"]}, {{}}, {{responsive: true}});
                         </script>
                     </div>
                     '''
@@ -402,9 +462,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
                 '''
             
             # Prepare recommendations HTML
-            recommendations_html = ""
-            for rec in result.recommendations:
-                recommendations_html += f"<li>{rec}</li>"
+            recommendations_html = "\n".join(result.recommendations)
             
             # Generate HTML report
             html_content = HTML_REPORT_TEMPLATE.format(
@@ -414,6 +472,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
                 timestamp=result.completed_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
                 executive_summary=result.executive_summary,
                 recommendations_html=recommendations_html,
+                data_analysis_section=data_analysis_section,
                 visualizations_html=visualizations_html,
                 detailed_findings_html=detailed_findings_html,
                 research_id=result.research_id,
@@ -435,9 +494,9 @@ Always provide thorough, evidence-based analysis that helps users make informed 
         """Format a finding result for HTML display"""
         if isinstance(result, dict):
             if "answer" in result:
-                return f"<p>{result['answer']}</p>"
+                return f"<div class='markdown-content'>{markdown.markdown(result['answer'])}</div>"
             elif "summary" in result:
-                return f"<p>{result['summary']}</p>"
+                return f"<div class='markdown-content'>{markdown.markdown(result['summary'])}</div>"
             else:
                 # Format as key-value pairs
                 formatted = "<ul>"
@@ -447,7 +506,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
                 formatted += "</ul>"
                 return formatted
         else:
-            return f"<p>{str(result)}</p>"
+            return f"<div class='markdown-content'>{markdown.markdown(str(result))}</div>"
 
 # Factory function for easy instantiation
 def create_architect_agent() -> ArchitectAgent:
