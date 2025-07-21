@@ -20,6 +20,16 @@ With the help of **io.net io intelligence**, you can access open-source models a
 
 ---
 
+---
+## High level overview of the Hackathon project
+
+![](docs/10x-engineer.png)
+- **By integerating with the io.net, Make your engineers 10x more productivityand let them enjoy their life in the free time** :) 
+
+![](docs/software-engineer-workflow.png)
+- End to end capabilities of the software agents
+
+
 ## 🤖 Multi-Bot Architecture
 
 The system supports **5 specialized Slack bots**, each with dedicated capabilities and identities. For detailed documentation, see [**Core Module Documentation**](./core/README.md).
@@ -64,7 +74,9 @@ The system supports **5 specialized Slack bots**, each with dedicated capabiliti
 | **Data Analyst**       | - Analyze data, generate reports, provide insights<br>- Create dashboards and visualizations                                                                           |
 | **Sentry Agent**       | - Monitor applications<br>- Detect issues<br>- Provide alerts                                                                                                         |
 
----
+
+
+
 
 ## System Architecture
 
@@ -85,17 +97,41 @@ Architect --> Sentry
 
 ---
 
-## End-to-End Workflow
+## High-Level System Flow
+
+This diagram illustrates the end-to-end request lifecycle, from the user's message in Slack to the agent's response.
 
 ```mermaid
-flowchart TD
-A["Data Preparation"] --> B["Web & Data Schema Scraping"]
-B --> C["Indexing & Embedding"]
-C --> D["Deploy Agents (Slack Bots)"]
-D --> E["Monitor & Trace Performance"]
-E --> F["Collect & Annotate Prompts"]
-F --> G["Fine-tune RAG Dataset / Model"]
-G --> D
+graph TD
+    subgraph User & Slack
+        User[Slack User] --> SlackAPI[Slack API]
+    end
+
+    subgraph Agent Backend (Hosted on io.net)
+        style AgentBackend fill:#f9f9f9,stroke:#333,stroke-width:2px
+        Bots[Multi-Bot System] --> Workflows[Durable Workflows (DBOS)]
+        Workflows --> Services[Agent Services <br/>(Architect, Developer, Data)]
+        Services --> Clients[API Clients <br/>(GitHub, LLM, RAG)]
+    end
+
+    subgraph External Services & Data
+        style ExternalServices fill:#f0f8ff,stroke:#333,stroke-width:2px
+        GitHub[GitHub API]
+        LLM[LLM Provider <br/>(io.net Intelligence)]
+        RAG[RAG System <br/>(Vector DB, Preset DB)]
+    end
+
+    SlackAPI -- Event --> Bots
+    Clients --> GitHub
+    Clients --> LLM
+    Clients --> RAG
+    
+    RAG --> Clients
+    GitHub --> Clients
+    LLM --> Clients
+    
+    Bots -- Response --> SlackAPI
+    SlackAPI --> User
 ```
 *The workflow is cyclical, enabling continuous self-improvement of the agent ecosystem.*
 

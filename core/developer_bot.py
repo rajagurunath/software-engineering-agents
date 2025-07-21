@@ -37,7 +37,7 @@ class DeveloperBotHandler:
     
     def _register_handlers(self):
         """Register all Developer-specific Slack event handlers"""
-        
+   
         @self.app.message("review pr")
         async def handle_pr_review(message, say, context):
             """Handle PR review requests"""
@@ -287,6 +287,10 @@ This will:
             )
             
             await say(f"❌ <@{user_id}> rejected execution {execution_id}")
+
+        @self.app.event("message")
+        async def handle_message_events(body, logger):
+            logger.info(body)
 
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger, say):

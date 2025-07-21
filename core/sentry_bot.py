@@ -125,6 +125,11 @@ For Sentry issues, use `handle sentry` in the alert thread.
             except Exception as e:
                 logger.error(f"Log analysis failed: {e}")
                 await say(f"❌ Log analysis failed: {str(e)}")
+                
+
+        @self.app.event("message")
+        async def handle_message_events(body, logger):
+            logger.info(body)
 
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger, say):

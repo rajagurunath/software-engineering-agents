@@ -55,6 +55,8 @@ class DataAnalystBotHandler:
                 
                 if result["success"]:
                     response = f"**Data Analysis Result:**\n{result['answer']}"
+                    response += f"Executed SQL: `{result.get('query', 'N/A')}`"
+                    response += f"\n\n*Follow-up Questions:* {', '.join(result.get('followup_questions', []))}" if result.get('followup_questions') else ""
                     await say(response)
                     
                     # Handle Plotly visualization
@@ -102,6 +104,8 @@ class DataAnalystBotHandler:
                 
                 if result["success"]:
                     response = f"**SQL Query Result:**\n{result['answer']}"
+                    response += f"Executed SQL: `{result.get('query', 'N/A')}`"
+                    response += f"\n\n*Follow-up Questions:* {', '.join(result.get('followup_questions', []))}" if result.get('followup_questions') else ""
                     await say(response)
                     
                     # Handle Plotly visualization
@@ -213,6 +217,10 @@ class DataAnalystBotHandler:
             except Exception as e:
                 logger.error(f"Report generation failed: {e}")
                 await say(f"❌ Report generation failed: {str(e)}")
+        
+        @self.app.event("message")
+        async def handle_message_events(body, logger):
+            logger.info(body)
 
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger, say):

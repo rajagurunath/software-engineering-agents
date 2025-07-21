@@ -116,6 +116,8 @@ class ArchitectBotHandler:
                 
                 if result["success"]:
                     response = f"**Data Analysis Result:**\n{result['answer']}"
+                    response += f"Executed SQL: `{result.get('query', 'N/A')}`"
+                    response += f"\n\n*Follow-up Questions:* {', '.join(result.get('followup_questions', []))}" if result.get('followup_questions') else ""
                     await say(response)
                     
                     # Handle Plotly visualization
@@ -136,6 +138,10 @@ class ArchitectBotHandler:
             except Exception as e:
                 logger.error(f"Quick data query failed: {e}")
                 await say(f"❌ Data query failed: {str(e)}")
+
+        @self.app.event("message")
+        async def handle_message_events(body, logger):
+            logger.info(body)
 
         @self.app.message("engineer docs")
         async def handle_quick_docs(message, say, context):
