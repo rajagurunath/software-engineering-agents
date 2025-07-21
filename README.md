@@ -81,6 +81,16 @@ G --> D
 
 ---
 
+## Workflow Diagrams
+
+For detailed diagrams of the various workflows, please see the following README files:
+
+- [**Core Module**](./core/README.md): Illustrates the Slack Bolt communication flow.
+- [**Architect Agent**](./services/architect/README.md): Shows the workflow of the Architect Agent.
+- [**Developer Services**](./services/developer/README.md): Contains diagrams for the PR review and PR creation workflows.
+
+---
+
 ## How to Use This Repository
 This repository contains end-to-end code workflows to deploy agents to your organization.
 
@@ -130,11 +140,3 @@ Currently, all these agents are accessible from **Slack**. By using these agents
 ---
 
 *More documentation and details will be added soon.*
-
-
-
-
-
-
-
-
