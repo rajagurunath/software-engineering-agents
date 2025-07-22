@@ -25,10 +25,13 @@ With the help of **io.net io intelligence**, you can access open-source models a
 ---
 ## High level overview of the Hackathon project
 
-![](docs/10x-engineer.png)
+![10x-engineer](docs/10x-engineer.png)
 - **By integerating with the io.net, Make your engineers 10x more productivityand let them enjoy their life in the free time** :) 
 
-![](docs/software-engineer-workflow.png)
+![context-engineering](docs/context-engineering.png)
+- **Success of Software Engineering Agents lies in the success of context engineering so context engineering infrastructure is important**
+
+![software-engineer-workflow](docs/software-engineer-workflow.png)
 - End to end capabilities of the software agents
 
 
