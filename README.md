@@ -6,6 +6,7 @@
   <img src="https://img.youtube.com/vi/tGZxhFgC1m8/0.jpg" alt="Watch the latest demo video" width="480"/>
 </a>
 
+### Playlist of Demos and Explanations
 **[📺 Watch the Demo & Explanation Playlist on YouTube](https://www.youtube.com/playlist?list=PLZDaBdSBp7PePrYxVWvBIRYLRybAydPN_)**
 
 ## Table of Contents
