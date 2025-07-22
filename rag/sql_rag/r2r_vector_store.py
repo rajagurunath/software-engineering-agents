@@ -33,7 +33,6 @@ def refresh_preset_token():
         "name":  settings.preset_name,
         "secret": settings.preset_secret,
         })
-    print("payload:", payload)
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -169,8 +168,6 @@ class R2R_VectorStore(VannaBase):
             #     "include_scores": True
             # }
         }
-        print("Retrieval search payload:", json.dumps(data, indent=2))  # Debug print
-        print("Authorization header:", self.headers.get("Authorization"))  # Debug print
         response = self._run_request("POST", "retrieval/search", headers={"Content-Type": "application/json"}, data=json.dumps(data))
         if response:
             # Optionally filter by doc_type in Python if needed

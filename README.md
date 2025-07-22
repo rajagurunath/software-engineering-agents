@@ -25,10 +25,13 @@ With the help of **io.net io intelligence**, you can access open-source models a
 ---
 ## High level overview of the Hackathon project
 
-![](docs/10x-engineer.png)
+![10x-engineer](docs/10x-engineer.png)
 - **By integerating with the io.net, Make your engineers 10x more productivityand let them enjoy their life in the free time** :) 
 
-![](docs/software-engineer-workflow.png)
+![context-engineering](docs/context-engineering.png)
+- **Success of Software Engineering Agents lies in the success of context engineering so context engineering infrastructure is important**
+
+![software-engineer-workflow](docs/software-engineer-workflow.png)
 - End to end capabilities of the software agents
 
 
@@ -224,6 +227,9 @@ Currently, all these agents are accessible from **Slack**. By using these agents
     - Uses both io.net R2R RAG APIs and Qdrant as the vector store and SentenceTransformer for embedding the data.
         - Qdrant is used when the daily limit of R2R RAG APIs is exceeded; otherwise, R2R RAG APIs are sufficient.
    - `rag/indexer/embedder.py` embeds the data into the vector store and can be used to test the embedding of JSON files standalone.
+- **Codebase Documentation with IO.NET & PocketFlow:**
+    - For details on integrating the IO.NET intelligence LLM with the [PocketFlow](https://github.com/The-Pocket/PocketFlow) document generator codebase, see [data/code_markdown/README.md](./data/code_markdown/README.md). This integration enables automated, high-quality documentation and code RAG for enhanced engineering productivity. The approach is inspired by [PocketFlow-Tutorial-Codebase-Knowledge](https://github.com/The-Pocket/PocketFlow-Tutorial-Codebase-Knowledge). This code Rag context is used by senior engineering Agents and Architect Agents for planning, decision and coding.
+
 
 ---
 ## Deploy Agents Team

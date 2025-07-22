@@ -35,7 +35,6 @@ def refresh_preset_token():
         "name":  settings.preset_name,
         "secret": settings.preset_secret,
         })
-    print("payload:", payload)
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
