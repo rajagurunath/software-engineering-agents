@@ -140,6 +140,50 @@ class ArchitectBotHandler:
                 logger.error(f"Quick data query failed: {e}")
                 await say(f"❌ Data query failed: {str(e)}")
 
+        @self.app.message("engineer docs")
+        async def handle_quick_docs(message, say, context):
+            """Handle quick documentation searches"""
+            trace("slack.quick_docs_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                
+                # Extract query (remove command prefix)
+                query = text.replace('engineer docs', '').strip()
+                if not query:
+                    await say("Please provide a documentation query. Example: `engineer docs How to stake IO tokens?`")
+                    return
+                
+                await say(f"📚 Searching documentation for: *{query}*")
+                
+                result = await self.architect_service.quick_docs_search(query, user_id)
+                
+                if result["success"]:
+                    response = f"**Documentation Search Result:**\n{result['answer']}"
+                    
+                    # Add relevant links if available
+                    if result.get("relevant_links"):
+                        response += "\n\n**Relevant Links:**\n"
+                        for link in result["relevant_links"][:3]:
+                            response += f"• {link}\n"
+                    
+                    # Add followup questions if available
+                    if result.get("followup_questions"):
+                        response += "\n**Related Questions:**\n"
+                        for question in result["followup_questions"][:3]:
+                            response += f"• {question}\n"
+                    
+                    await say(response)
+                else:
+                    await say(f"❌ Documentation search failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                logger.error(f"Quick docs search failed: {e}")
+                await say(f"❌ Documentation search failed: {str(e)}")
+
         @self.app.event("message")
         async def handle_message_events(body, logger,say):
             logger.info(body)
@@ -239,49 +283,7 @@ class ArchitectBotHandler:
                                 thread_ts=ts
                             )
         
-        @self.app.message("engineer docs")
-        async def handle_quick_docs(message, say, context):
-            """Handle quick documentation searches"""
-            trace("slack.quick_docs_request", {
-                "user_id": message['user'],
-                "text": message['text'][:200]
-            })
-            try:
-                text = message['text']
-                user_id = message['user']
-                
-                # Extract query (remove command prefix)
-                query = text.replace('engineer docs', '').strip()
-                if not query:
-                    await say("Please provide a documentation query. Example: `engineer docs How to stake IO tokens?`")
-                    return
-                
-                await say(f"📚 Searching documentation for: *{query}*")
-                
-                result = await self.architect_service.quick_docs_search(query, user_id)
-                
-                if result["success"]:
-                    response = f"**Documentation Search Result:**\n{result['answer']}"
-                    
-                    # Add relevant links if available
-                    if result.get("relevant_links"):
-                        response += "\n\n**Relevant Links:**\n"
-                        for link in result["relevant_links"][:3]:
-                            response += f"• {link}\n"
-                    
-                    # Add followup questions if available
-                    if result.get("followup_questions"):
-                        response += "\n**Related Questions:**\n"
-                        for question in result["followup_questions"][:3]:
-                            response += f"• {question}\n"
-                    
-                    await say(response)
-                else:
-                    await say(f"❌ Documentation search failed: {result.get('error', 'Unknown error')}")
-                    
-            except Exception as e:
-                logger.error(f"Quick docs search failed: {e}")
-                await say(f"❌ Documentation search failed: {str(e)}")
+        
 
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger, say):
