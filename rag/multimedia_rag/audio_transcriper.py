@@ -67,7 +67,7 @@ class AudioRAG:
     def transcribe_slack_audio(self, local_audio_path, model='base.en'):
         try:
             # Insert the audio file
-            self.audio_table.insert({'audio': local_audio_path})
+            self.audio_table.insert([{'audio': local_audio_path}])
             
             # Add transcription column if it doesn't exist
             if 'transcription' not in [col.name for col in self.audio_table.columns]:
@@ -137,7 +137,7 @@ def process_slack_audio_event(event_json):
             # Download audio file
             try:
                 from config.settings import settings
-                headers = {'Authorization': f'Bearer {settings.slack_bot_token}'}
+                headers = {'Authorization': f'Bearer {settings.slack_architect_bot_token}'}
                 response = requests.get(audio_url, headers=headers)
                 response.raise_for_status()
                 

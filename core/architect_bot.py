@@ -23,7 +23,8 @@ from utils.opik_tracer import trace
 import plotly.io as pio
 import tempfile
 import os
-
+from rag.multimedia_rag.audio_transcriper import process_slack_audio_event
+from rag.multimedia_rag.video_rag import process_slack_video_event, process_video_with_rag
 logger = logging.getLogger(__name__)
 
 class ArchitectBotHandler:
@@ -140,9 +141,104 @@ class ArchitectBotHandler:
                 await say(f"❌ Data query failed: {str(e)}")
 
         @self.app.event("message")
-        async def handle_message_events(body, logger):
+        async def handle_message_events(body, logger,say):
             logger.info(body)
+            event = body.get('event', {})
+            files = event.get('files', [])
+            
+            if event.get('subtype') == 'file_share' and files:
+                for f in files:
+                    mimetype = f.get('mimetype', '')
+                    
+                    # Handle audio files
+                    if mimetype.startswith('audio/') or mimetype in ['audio/mp4', 'audio/mpeg', 'audio/x-m4a']:
+                        user = event.get('user')
+                        ts = event.get('ts')
+                        channel = event.get('channel')
+                        
+                        transcript = None
+                        try:
+                            transcript = process_slack_audio_event(body)
 
+                            if transcript:
+                                await self.app.client.chat_postMessage(channel=channel, text=f"📝 Transcript: {transcript}", thread_ts=ts)
+                                
+                                # Pass transcript to architect agent for analysis
+                                try:
+                                    result = await self.architect_service.conduct_research(
+                                        query=transcript,
+                                        user_id=user,
+                                        research_type=None,
+                                        thread_id=ts,
+                                        channel_id=channel,
+                                        include_visualizations=True
+                                    )
+                                    await self._send_architect_results(say, result, channel, ts)
+                                except Exception as e:
+                                    logger.error(f"Architect request from audio transcript failed: {e}")
+                                    await self.app.client.chat_postMessage(channel=channel, text=f"❌ Architect agent failed: {str(e)}", thread_ts=ts)
+                            else:
+                                await self.app.client.chat_postMessage(channel=channel, text=f"❌ Audio transcription failed.", thread_ts=ts)
+                        except Exception as e:
+                            logger.error(f"Audio processing error: {e}")
+                    
+                    # Handle video files
+                    elif mimetype.startswith('video/'):
+                        user = event.get('user')
+                        ts = event.get('ts')
+                        channel = event.get('channel')
+                        
+                        try:
+                            await self.app.client.chat_postMessage(
+                                channel=channel, 
+                                text=f"🎥 Video detected! Processing... This may take a moment.", 
+                                thread_ts=ts
+                            )
+                            
+                            # Download and prepare video
+                            video_info = process_slack_video_event(body)
+                            
+                            if video_info and video_info.get('success'):
+                                # Process video with RAG
+                                video_result = await process_video_with_rag(video_info)
+                                
+                                if video_result and video_result.get('success'):
+                                    # Post video understanding first
+                                    understanding_text = f"🎥 **Video Understanding:**\n{video_result['video_understanding']}"
+                                    if video_result.get('audio_transcript'):
+                                        understanding_text += f"\n\n📝 **Audio Transcript:**\n{video_result['audio_transcript']}"
+                                    
+                                    await self.app.client.chat_postMessage(
+                                        channel=channel, 
+                                        text=understanding_text, 
+                                        thread_ts=ts
+                                    )
+                                    
+                                    # Pass combined analysis to architect agent
+                                    combined_query = video_result['combined_analysis']
+                                    if combined_query:
+                                        await self._process_architect_request_from_media(combined_query, user, channel, ts)
+                                else:
+                                    await self.app.client.chat_postMessage(
+                                        channel=channel, 
+                                        text=f"❌ Video processing failed.", 
+                                        thread_ts=ts
+                                    )
+                            else:
+                                await self.app.client.chat_postMessage(
+                                    channel=channel, 
+                                    text=f"❌ Could not process video file.", 
+                                    thread_ts=ts
+                                )
+                                
+                        except Exception as e:
+                            logger.error(f"Video processing error: {e}")
+                            await self.app.client.chat_postMessage(
+                                channel=channel, 
+                                text=f"❌ Video processing error: {str(e)}", 
+                                thread_ts=ts
+                            )
+        
         @self.app.message("engineer docs")
         async def handle_quick_docs(message, say, context):
             """Handle quick documentation searches"""
