@@ -1,6 +1,11 @@
 # Decentralised Software Agents for Startups and Enterprises
 
-![Software Engineering Agents Presentation](https://youtu.be/tGZxhFgC1m8)
+
+
+<a href="https://youtu.be/tGZxhFgC1m8" target="_blank">
+  <img src="https://img.youtube.com/vi/tGZxhFgC1m8/0.jpg" alt="Watch the latest demo video" width="480"/>
+</a>
+
 **[📺 Watch the Demo & Explanation Playlist on YouTube](https://www.youtube.com/playlist?list=PLZDaBdSBp7PePrYxVWvBIRYLRybAydPN_)**
 
 ## Table of Contents
@@ -21,6 +26,7 @@ Nowadays, agents can do mind-blowing things: write code, create content, and man
 
 With the help of **io.net io intelligence**, you can access open-source models at all times. If needed, you can deploy your own model on the io.net platform. io.net provides both CaaS (Cluster as a Service) and Baremetal clusters to deploy LLM models, which can be used to build all these enterprise agents.
 
+This Agents Team benefits both the internal customers (employees) and external customers (clients).
 ---
 
 ---
