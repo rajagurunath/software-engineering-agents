@@ -19,6 +19,7 @@
 - [Preparation for Agents Team](#preparation-for-agents-team-pre-deployment-phase)
 - [Deploy Agents Team](#deploy-agents-team)
 - [Monitor and Self-Improve](#monitor-and-self-improvement-of-agents-team)
+- [FAQ](#faq)
 
 ---
 
@@ -277,6 +278,47 @@ For detailed setup instructions, see [**Core Module Documentation**](./core/READ
 - [**Data Support**](./services/data_support/README.md) - Data analysis workflows
 - [**Slack Setup**](./slack_setup/README.md) - Slack bot configuration
 - [**RAG System**](./rag/README.md) - Retrieval and indexing
+
+---
+
+## FAQ
+
+### How accurate or reliable are these developer agents for complex tasks?
+
+**Question:**
+> I noticed you’ve built different types of dev agents like architects, senior developers, etc., which is a really interesting approach. From my own experience with tools like ChatGPT and Claude, they usually do a decent job with documentation-based questions. But when it comes to real-world, complex codebases, especially with large or messy structures, I’ve seen them struggle. Sometimes the responses get stuck in loops or just keep giving wrong suggestions.
+>
+> Did you get a chance to test how accurate or reliable these different developer agents are, especially for tasks like navigating real code, making architecture decisions, or debugging tricky issues? How well do they actually perform at those higher levels of responsibility?
+
+**Answer:**
+> To be upfront, I haven’t tested these agents in complex use cases yet. But after going through a few blogs and videos around dev agents, I feel reasonably confident that they can handle about 60–80% of typical workflows.
+>
+> Here are a few of my thoughts:
+> - The agents we’ve integrated with Slack are autonomous and work well for smaller use cases.
+> - For more complex workflows, I see this evolving into something like a centralized Mobile Vibe coding platform — where agents:
+>   - Create PRs
+>   - Review PRs with humans
+>   - Handle PR comments with humans
+>
+> This sets up a nice feedback loop between agents and humans — enabling collaborative, self-improving workflows.
+>
+> Also, I keep coming back to **context engineering**. We’ve seen examples of architecture-understanding agents like DeepWiki and frameworks such as:
+> - [deepwiki-open](https://github.com/AsyncFuncAI/deepwiki-open)
+> - [PocketFlow-Tutorial-Codebase-Knowledge](https://github.com/The-Pocket/PocketFlow-Tutorial-Codebase-Knowledge) (used this one for the hackathon)
+>
+> These tools can:
+> - Analyze a codebase in a structured way
+> - Extract the structure
+> - Read files progressively
+> - Accumulate context in memory
+> - Link modules intelligently
+> - Eventually, generate comprehensive documentation and understanding
+>
+> They rely on making multiple LLM calls, so as long as we have solid models, we can keep pushing.
+>
+> What gives us an edge is that we can run our own LLMs internally. That means we can let them work on these internal projects during off-peak hours, avoiding the cost hit that comes from using external providers like OpenAI or Claude.
+>
+> So TL;DR — I’m betting big on context engineering. If we can present rich, structured context in a consumable form to our agents, they can start making smart decisions on their own. It’s tricky, but doable to some extent.
 
 ---
 
