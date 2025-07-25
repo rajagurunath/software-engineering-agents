@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Engineering Agents</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --accent-color: #0ea5e9;
+            --light-color: #f8fafc;
+            --dark-color: #0f172a;
+            --text-color: #334155;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-color);
+        }
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .nav-links {
+            display: flex;
+            list-style: none;
+        }
+        .nav-links li {
+            margin-left: 1.5rem;
+        }
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+        .nav-links a:hover {
+            opacity: 0.8;
+        }
+        .hero {
+            padding: 4rem 0;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto 2rem;
+        }
+        .btn {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: var(--border-radius);
+            text-decoration: none;
+            font-weight: 600;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--box-shadow);
+        }
+        .features {
+            padding: 4rem 0;
+            background-color: white;
+        }
+        .section-title {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: var(--dark-color);
+        }
+        .section-title h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        .feature-card {
+            background: var(--light-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: var(--box-shadow);
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-10px);
+        }
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+        .feature-card h3 {
+            margin-bottom: 1rem;
+            color: var(--dark-color);
+        }
+        .architecture {
+            padding: 4rem 0;
+            background-color: #e2e8f0;
+        }
+        .architecture-diagram {
+            max-width: 100%;
+            height: auto;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin: 2rem 0;
+        }
+        .modules {
+            padding: 4rem 0;
+            background-color: white;
+        }
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+        .module-card {
+            background: var(--light-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--box-shadow);
+            text-align: center;
+        }
+        .module-card h3 {
+            margin: 1rem 0;
+            color: var(--dark-color);
+        }
+        .cta {
+            padding: 4rem 0;
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        .cta h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        .cta p {
+            max-width: 700px;
+            margin: 0 auto 2rem;
+            font-size: 1.2rem;
+        }
+        .cta .btn {
+            background-color: white;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+        footer {
+            background-color: var(--dark-color);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+        }
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .footer-links {
+            display: flex;
+            list-style: none;
+            margin: 1rem 0;
+        }
+        .footer-links li {
+            margin: 0 1rem;
+        }
+        .footer-links a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        /* Slideshow Styles */
+        .slideshow-container {
+            position: relative;
+            max-width: 100%;
+            margin: 2rem auto;
+        }
+        .slideshow-slide {
+            display: none;
+            text-align: center;
+        }
+        .slideshow-slide.active {
+            display: block;
+        }
+        .slideshow-controls {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .slideshow-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0 0.5rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+        }
+        .slideshow-btn:hover {
+            background-color: var(--secondary-color);
+        }
+        .slideshow-indicators {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #ccc;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        .indicator.active {
+            background-color: var(--primary-color);
+        }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+        }
+        .modal-content {
+            position: relative;
+            margin: 5% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 1200px;
+            background-color: white;
+            border-radius: var(--border-radius);
+        }
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 25px;
+            color: #aaa;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        .zoomable-diagram {
+            cursor: zoom-in;
+            max-width: 100%;
+            height: auto;
+            border-radius: var(--border-radius);
+        }
+        
+        /* Highlighted Workflow */
+        .highlighted-workflow {
+            background-color: #dbeafe;
+            border-left: 5px solid var(--primary-color);
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            .hero h1 {
+                font-size: 2rem;
+            }
+            .hero p {
+                font-size: 1rem;
+            }
+        }
+    </style>
+    <!-- Include Mermaid.js -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <div class="logo">SE Agents</div>
+                <ul class="nav-links">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#architecture">Architecture</a></li>
+                    <li><a href="#modules">Modules</a></li>
+                    <li><a href="#workflows">Workflows</a></li>
+                    <li><a href="#cta">Get Started</a></li>
+                </ul>
+            </nav>
+            <div class="hero">
+                <h1>Software Engineering Agents</h1>
+                <p>AI-powered autonomous agents for modern software development. Enhance your coding workflow with intelligent automation.</p>
+                <a href="#cta" class="btn">Explore Project</a>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-title">
+                <h2>Key Features</h2>
+                <p>Advanced AI systems designed for autonomous software development tasks</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Autonomous Agents</h3>
+                    <p>Specialized agents for software engineering, code analysis, and editing that orchestrate the development process.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Iterative Refinement</h3>
+                    <p>Agents refine their output iteratively, enhancing performance over time through techniques like code review and optimization.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛠️</div>
+                    <h3>Tool Integration</h3>
+                    <p>Effective interaction with development tools including version control systems and build environments.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Complex Problem Solving</h3>
+                    <p>Handles complex scenarios like fixing incomplete patches and adding new features.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Intelligent Decision Making</h3>
+                    <p>Helps managers and developers make better decisions by analyzing project data and predicting outcomes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Global Accessibility</h3>
+                    <p>Supports a wide number of distributed users accessing the system concurrently.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="image-gallery" class="features" style="background-color: var(--light-color);">
+        <div class="container">
+            <div class="section-title">
+                <h2>Image Gallery</h2>
+                <p>Visual representations of key concepts and workflows.</p>
+            </div>
+            <div class="slideshow-container" data-slideshow-id="gallery">
+                <div class="slideshow-slide">
+                    <img src="https://github.com/rajagurunath/software-engineering-agents/blob/main/docs/10x-engineer.png?raw=true" alt="10x Engineer Workflow" class="zoomable-diagram" onclick="openModal(this)" style="max-width: 80%; height: auto;">
+                </div>
+                <div class="slideshow-slide">
+                    <img src="https://github.com/rajagurunath/software-engineering-agents/blob/main/docs/context-engineering.png?raw=true" alt="Context Engineering Workflow" class="zoomable-diagram" onclick="openModal(this)" style="max-width: 80%; height: auto;">
+                </div>
+                <div class="slideshow-slide">
+                    <img src="https://github.com/rajagurunath/software-engineering-agents/blob/main/docs/software-engineer-workflow.png?raw=true" alt="Software Engineer Workflow" class="zoomable-diagram" onclick="openModal(this)" style="max-width: 80%; height: auto;">
+                </div>
+                <div class="slideshow-controls">
+                    <button class="slideshow-btn" onclick="changeSlide(-1, 'gallery')">Previous</button>
+                    <button class="slideshow-btn" onclick="changeSlide(1, 'gallery')">Next</button>
+                </div>
+                <div class="slideshow-indicators">
+                    <span class="indicator" onclick="currentSlide(1, 'gallery')"></span>
+                    <span class="indicator" onclick="currentSlide(2, 'gallery')"></span>
+                    <span class="indicator" onclick="currentSlide(3, 'gallery')"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="architecture" class="architecture">
+        <div class="container">
+            <div class="section-title">
+                <h2>System Architecture</h2>
+                <p>Unified architecture for comprehensive software engineering automation</p>
+            </div>
+            <div class="architecture-diagram">
+                <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                    graph TB
+                        subgraph "Slack Workspace"
+                            U[Users]
+                            C[Channels]
+                        end
+                        
+                        subgraph "Multi-Bot System"
+                            MD[Main Dispatcher Bot<br/>@main-bot]
+                            AB[Architect Bot<br/>@architect-bot]
+                            DB[Developer Bot<br/>@developer-bot]
+                            DAB[Data Analyst Bot<br/>@data-analyst-bot]
+                            SB[Sentry Bot<br/>@sentry-bot]
+                        end
+                        
+                        subgraph "Services Layer"
+                            AS[Architect Service]
+                            PRW[PR Workflows]
+                            SD[Sentry Debugger]
+                            RAG[RAG Systems]
+                            LLM[LLM Clients]
+                        end
+                        
+                        subgraph "External Integrations"
+                            GH[GitHub API]
+                            LIN[Linear API]
+                            SENT[Sentry API]
+                            DB_SYS[Database Systems]
+                        end
+                        
+                        U --> MD
+                        U --> AB
+                        U --> DB
+                        U --> DAB
+                        U --> SB
+                        
+                        MD --> AS
+                        AB --> AS
+                        AB --> RAG
+                        DB --> PRW
+                        DB --> GH
+                        DAB --> AS
+                        DAB --> DB_SYS
+                        SB --> SD
+                        SB --> SENT
+                        
+                        AS --> LLM
+                        PRW --> GH
+                        PRW --> LIN
+                        SD --> LLM
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="modules" class="modules">
+        <div class="container">
+            <div class="section-title">
+                <h2>Core Modules</h2>
+                <p>Modular components enabling specialized functionality</p>
+            </div>
+            <div class="modules-grid">
+                <div class="module-card">
+                    <h3>Core Engine</h3>
+                    <p>Central orchestration system for agent coordination and task management.</p>
+                </div>
+                <div class="module-card">
+                    <h3>RAG System</h3>
+                    <p>Retrieval-Augmented Generation for contextual code understanding and documentation retrieval.</p>
+                </div>
+                <div class="module-card">
+                    <h3>Architect Agent</h3>
+                    <p>High-level design and planning agent for system architecture decisions.</p>
+                </div>
+                <div class="module-card">
+                    <h3>Code Processing</h3>
+                    <p>Advanced code analysis and transformation capabilities.</p>
+                </div>
+                <div class="module-card">
+                    <h3>Slack Integration</h3>
+                    <p>Communication layer for team collaboration and notifications.</p>
+                </div>
+                <div class="module-card">
+                    <h3>Data Services</h3>
+                    <p>Storage and management of code knowledge and agent interactions.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="workflows" class="workflows">
+        <div class="container">
+            <div class="section-title">
+                <h2>Workflows</h2>
+                <p>Automated processes for efficient software development</p>
+            </div>
+            
+            <!-- Highlighted Architect Workflow -->
+            <div class="highlighted-workflow">
+                <h3>Architect Workflow (Highlighted)</h3>
+                <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                    graph TD
+                        A[ArchitectService - conduct_research] --> B{ArchitectAgent - conduct_research}
+                        B --> C[Create Research Plan]
+                        C --> D[Determine Research Type]
+                        D --> E[Planner Agent - Generate Plan]
+                        E --> F[Research Plan Created]
+                        
+                        B --> G[Execute Research Steps]
+                        G --> H[Loop through each step]
+                        H --> I[Tools - execute_tool_action]
+                        I --> J[Step Result]
+                        J --> H
+                        
+                        B --> K[Synthesize Results]
+                        K --> L[Collect all findings]
+                        L --> M[Summarizer Agent - Generate Summary]
+                        M --> N[Summarizer Agent - Generate Recommendations]
+                        N --> O[ResearchResult Created]
+                        
+                        B --> P[Generate HTML Report]
+                        P --> Q[HTML Report Created]
+                        Q --> R[Return ResearchResult]
+
+                        %% Subgraphs for logical grouping
+                        subgraph "Step 1: Planning"
+                            C
+                            D
+                            E
+                            F
+                        end
+
+                        subgraph "Step 2: Execution"
+                            G
+                            H
+                            I
+                            J
+                        end
+
+                        subgraph "Step 3: Synthesis"
+                            K
+                            L
+                            M
+                            N
+                            O
+                        end
+
+                        subgraph "Step 4: Reporting"
+                            P
+                            Q
+                        end
+                </div>
+            </div>
+            
+            <!-- Slideshow for Other Workflows -->
+            <div class="slideshow-container" data-slideshow-id="workflows">
+                <div class="slideshow-slide">
+                    <h3>PR Review Workflow</h3>
+                    <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                        sequenceDiagram
+                            participant User
+                            participant SlackBotHandler
+                            participant PRWorkflows
+                            participant PRReviewService
+                            participant GitHubClient
+                            participant LLMClient
+                            participant LinearClient
+
+                            User->>SlackBotHandler: "review pr <pr_url>"
+                            SlackBotHandler->>PRWorkflows: pr_review_workflow(request)
+                            PRWorkflows->>PRReviewService: review_pr(request)
+                            
+                            PRReviewService->>GitHubClient: get_pr_details()
+                            GitHubClient-->>PRReviewService: PR Details
+                            
+                            PRReviewService->>GitHubClient: get_pr_diff()
+                            GitHubClient-->>PRReviewService: PR Diff
+                            
+                            PRReviewService->>GitHubClient: get_pr_files()
+                            GitHubClient-->>PRReviewService: PR Files
+                            
+                            opt Linear Issue ID present
+                                PRReviewService->>LinearClient: get_issue_details()
+                                LinearClient-->>PRReviewService: Linear Context
+                            end
+                            
+                            PRReviewService->>GitHubClient: get_ci_status()
+                            GitHubClient-->>PRReviewService: CI Status
+                            
+                            PRReviewService->>LLMClient: _analyze_code_quality(diff)
+                            LLMClient-->>PRReviewService: Quality Analysis
+                            
+                            PRReviewService->>LLMClient: _find_bugs(diff)
+                            LLMClient-->>PRReviewService: Bugs Found
+                            
+                            PRReviewService->>PRReviewService: _check_test_coverage(files)
+                            
+                            PRReviewService->>LLMClient: _generate_recommendations(...)
+                            LLMClient-->>PRReviewService: Recommendations
+                            
+                            PRReviewService->>LLMClient: _generate_review_summary(...)
+                            LLMClient-->>PRReviewService: Review Summary
+                            
+                            PRReviewService->>GitHubClient: add_pr_comment(summary)
+                            
+                            PRReviewService-->>PRWorkflows: PRReviewResponse
+                            PRWorkflows-->>SlackBotHandler: PRReviewResponse
+                            SlackBotHandler->>User: Sends review summary
+                    </div>
+                </div>
+                
+                <div class="slideshow-slide">
+                    <h3>Create PR Workflow</h3>
+                    <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                        graph TD
+                            A[User] --> B(SlackBotHandler: create pr)
+                            B --> C{PRWorkflows: pr_creation_workflow}
+                            C --> D{Approval Check}
+                            D -- Yes --> E[ApprovalService: request_approval]
+                            E --> F[User Approves]
+                            F --> C
+                            D -- No --> G{PRCreatorService: create_pr}
+                            G --> H[SandboxManager: get_sandbox]
+                            H --> I[Clone Repo & Create Branch]
+                            I --> J{LLMClient: generate_implementation_plan}
+                            J --> K[Implement Changes]
+                            K --> L[Run Tests]
+                            L --> M{Tests Passed?}
+                            M -- No --> N[LLMClient: suggest_test_fixes]
+                            N --> K
+                            M -- Yes --> O[Commit & Push Changes]
+                            O --> P{GitHubClient: create_pr}
+                            P --> Q[PR Creation Response]
+                            Q --> C
+                            C --> B
+                            B --> A
+                    </div>
+                </div>
+                
+                <div class="slideshow-slide">
+                    <h3>Audio/Video RAG Workflow</h3>
+                    <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                        graph TD
+                            subgraph Slack
+                                User[User uploads audio/video file]
+                            end
+
+                            subgraph Agent Backend
+                                A[Slack Event Handler] --> B{process_slack_video_event}
+                                B --> C[Download file from Slack]
+                                C --> D{VideoRAG: process_video}
+                                D --> E[Insert into Pixeltable]
+                                E --> F[Extract audio track]
+                                F --> G[Transcribe audio with Whisper]
+                                G --> H[Extract keyframes with OpenCV]
+                                H --> I{LLMClient: Analyze with Vision Model}
+                                I --> J[Generate comprehensive analysis]
+                                J --> K[Return results to user]
+                            end
+
+                            User --> A
+                            K --> User
+                    </div>
+                </div>
+                
+                <div class="slideshow-slide">
+                    <h3>IODatabot Workflow</h3>
+                    <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                        sequenceDiagram
+                            participant User
+                            participant ArchitectTools
+                            participant IONetDataBot
+                            participant LLMClient
+                            participant VectorDB
+                            participant PresetDatabase
+
+                            User->>ArchitectTools: Asks a question (e.g., "How many devices are online?")
+                            ArchitectTools->>IONetDataBot: query_data(question)
+                            
+                            IONetDataBot->>VectorDB: Search for similar questions/SQL
+                            VectorDB-->>IONetDataBot: Returns relevant examples
+                            
+                            IONetDataBot->>LLMClient: generate_sql(question, examples)
+                            LLMClient-->>IONetDataBot: SQL Query
+                            
+                            IONetDataBot->>PresetDatabase: run_sql(sql)
+                            PresetDatabase-->>IONetDataBot: Query Result (DataFrame)
+                            
+                            IONetDataBot->>LLMClient: generate_plotly_code(question, sql, df)
+                            LLMClient-->>IONetDataBot: Plotly Code
+                            
+                            IONetDataBot->>IONetDataBot: get_plotly_figure(code, df)
+                            
+                            IONetDataBot->>LLMClient: generate_followup_questions(question, sql, df)
+                            LLMClient-->>IONetDataBot: Follow-up Questions
+                            
+                            IONetDataBot-->>ArchitectTools: Returns data, chart, and follow-up questions
+                            ArchitectTools-->>User: Sends formatted response
+                    </div>
+                </div>
+                
+                <div class="slideshow-slide">
+                    <h3>Slack Integration Workflow</h3>
+                    <div class="mermaid zoomable-diagram" onclick="openModal(this)">
+                        flowchart TD
+                            %% Slack user and client
+                            subgraph Slack_Workspace
+                                U[Slack User]
+                                SlackClient[Slack App via Slack client]
+                            end
+
+                            %% Slack backend
+                            subgraph Slack_Backend
+                                SlackAPI[Slack API Servers]
+                                WS[Socket Mode WebSocket Gateway]
+                            end
+
+                            %% Your app
+                            subgraph Your_App
+                                BoltApp[Bolt Python App]
+                                Module[Your Python Modules / Handlers]
+                            end
+
+                            %% Interaction flow
+                            U -->|User interaction| SlackClient
+                            SlackClient -->|Send event| SlackAPI
+                            SlackAPI -->|Push event| WS
+                            WS -->|WebSocket event| BoltApp
+                            BoltApp -->|Dispatch to handler| Module
+                            Module -->|Process and respond| Module
+                            Module -->|Send response| BoltApp
+                            BoltApp -->|Call Slack API| SlackAPI
+                            SlackAPI -->|Update UI / Post Message| SlackClient
+
+                            %% WebSocket connection
+                            BoltApp <-->|Persistent WebSocket| WS
+                    </div>
+                </div>
+                
+                <div class="slideshow-controls">
+                    <button class="slideshow-btn" onclick="changeSlide(-1, 'workflows')">Previous</button>
+                    <button class="slideshow-btn" onclick="changeSlide(1, 'workflows')">Next</button>
+                </div>
+                
+                <div class="slideshow-indicators">
+                    <span class="indicator" onclick="currentSlide(1, 'workflows')"></span>
+                    <span class="indicator" onclick="currentSlide(2, 'workflows')"></span>
+                    <span class="indicator" onclick="currentSlide(3, 'workflows')"></span>
+                    <span class="indicator" onclick="currentSlide(4, 'workflows')"></span>
+                    <span class="indicator" onclick="currentSlide(5, 'workflows')"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="cta" class="cta">
+        <div class="container">
+            <h2>Ready to Transform Your Development Workflow?</h2>
+            <p>Experience the future of software engineering with AI agents that can take a GitHub issue and return a complete pull request solution.</p>
+            <a href="https://github.com/rajagurunath/software-engineering-agents" class="btn">View on GitHub</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="logo">SE Agents</div>
+                <ul class="footer-links">
+                    <li><a href="#">Documentation</a></li>
+                    <li><a href="#">GitHub</a></li>
+                    <li><a href="#">License</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+                <p>&copy; 2023 Software Engineering Agents Project. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Modal for Zoomable Diagrams -->
+    <div id="diagramModal" class="modal">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <div class="modal-content">
+            <img id="modalImage" style="width: 100%; height: auto;">
+            <div id="modalMermaid" style="width: 100%; height: 80vh;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Slideshow functionality
+        const slideshows = {};
+
+        function initializeSlideshows() {
+            const containers = document.querySelectorAll('.slideshow-container');
+            containers.forEach(container => {
+                const id = container.dataset.slideshowId;
+                if (id) {
+                    slideshows[id] = {
+                        slideIndex: 1,
+                        slides: container.getElementsByClassName("slideshow-slide"),
+                        indicators: container.getElementsByClassName("indicator")
+                    };
+                    showSlides(1, id);
+                }
+            });
+        }
+
+        function changeSlide(n, id) {
+            const slideshow = slideshows[id];
+            if (!slideshow) return;
+            slideshow.slideIndex += n;
+            showSlides(slideshow.slideIndex, id);
+        }
+
+        function currentSlide(n, id) {
+            const slideshow = slideshows[id];
+            if (!slideshow) return;
+            slideshow.slideIndex = n;
+            showSlides(slideshow.slideIndex, id);
+        }
+
+        function showSlides(n, id) {
+            const slideshow = slideshows[id];
+            if (!slideshow) return;
+            const { slides, indicators } = slideshow;
+            
+            if (n > slides.length) { slideshow.slideIndex = 1 }
+            if (n < 1) { slideshow.slideIndex = slides.length }
+            
+            for (let i = 0; i < slides.length; i++) {
+                slides[i].style.display = "none";
+            }
+            
+            for (let i = 0; i < indicators.length; i++) {
+                indicators[i].className = indicators[i].className.replace(" active", "");
+            }
+            
+            if (slides.length > 0) {
+                slides[slideshow.slideIndex - 1].style.display = "block";
+            }
+            if (indicators.length > 0) {
+                indicators[slideshow.slideIndex - 1].className += " active";
+            }
+        }
+        
+        // Modal functionality
+        function openModal(element) {
+            const modal = document.getElementById("diagramModal");
+            const modalImage = document.getElementById("modalImage");
+            const modalMermaid = document.getElementById("modalMermaid");
+            
+            // Reset content
+            modalImage.style.display = "none";
+            modalMermaid.style.display = "none";
+            modalMermaid.innerHTML = "";
+            
+            // Check if it's an image or mermaid diagram
+            if (element.tagName === "IMG") {
+                modalImage.src = element.src;
+                modalImage.style.display = "block";
+            } else {
+                // For mermaid diagrams, we need to re-render in the modal
+                const diagramCode = element.querySelector('.mermaid') ? 
+                    element.querySelector('.mermaid').innerHTML :
+                    element.innerHTML;
+                    
+                modalMermaid.style.display = "block";
+                
+                // Render mermaid in modal
+                try {
+                    mermaid.mermaidAPI.render('modalDiagram', diagramCode, (svgCode) => {
+                        modalMermaid.innerHTML = svgCode;
+                    });
+                } catch (e) {
+                    modalMermaid.innerHTML = "Error rendering diagram: " + e.message;
+                }
+            }
+            
+            modal.style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById("diagramModal").style.display = "none";
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById("diagramModal");
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            initializeSlideshows();
+        });
+    </script>
+</body>
+</html>
