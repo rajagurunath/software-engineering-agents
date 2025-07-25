@@ -48,6 +48,26 @@ class SentryBotHandler:
                 logger.error(f"Error in Sentry issue handling: {e}")
                 trace("slack.sentry_issue_error", {"error": str(e)})
                 await say(f"❌ Error handling Sentry issue: {str(e)}")
+        
+        @self.app.event("app_mention")
+        async def handle_app_mention(event, say):
+            """Handles mentions of the bot"""
+            user_id = event.get("user")
+            text = event.get("text")
+            
+            trace("slack.app_mention", {
+                "user_id": user_id,
+                "text": text[:200] if text else ""
+            })
+            
+            # Acknowledge the mention and offer help
+            await say(
+                f"Hi <@{user_id}>! I'm the Sentry Bot. How can I help you today? "
+                "You can ask me to:\n"
+                "• `handle sentry` in a thread with a Sentry alert.\n"
+                "• `debug error <error description or Sentry URL>`.\n"
+                "• `analyze logs <log content>`."
+            )
 
         @self.app.message("debug error")
         async def handle_error_debugging(message, say, context):
@@ -127,9 +147,6 @@ For Sentry issues, use `handle sentry` in the alert thread.
                 await say(f"❌ Log analysis failed: {str(e)}")
                 
 
-        @self.app.event("message")
-        async def handle_message_events(body, logger):
-            logger.info(body)
 
         @self.app.event("assistant_thread_started")
         async def handle_assistant_thread_started_events(body, logger, say):
