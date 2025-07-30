@@ -23,6 +23,7 @@ from utils.opik_tracer import trace
 import plotly.io as pio
 import tempfile
 import os
+import json
 from rag.multimedia_rag.audio_transcriper import process_slack_audio_event
 from rag.multimedia_rag.video_rag import process_slack_video_event, process_video_with_rag
 logger = logging.getLogger(__name__)
@@ -37,7 +38,51 @@ class ArchitectBotHandler:
         )
         self.architect_service = ArchitectService()
         self._register_handlers()
-    
+
+    async def _get_thread_summary(self, client: WebClient, channel: str, thread_ts: str) -> (Optional[str], Optional[list]):
+        """Fetches and summarizes a Slack thread, returning the summary text and messages."""
+        all_messages = []
+        cursor = None
+        while True:
+            history = await client.conversations_replies(
+                channel=channel,
+                ts=thread_ts,
+                limit=200,
+                cursor=cursor
+            )
+            messages = history.get('messages', [])
+            all_messages.extend(messages)
+            
+            if not history.get('has_more'):
+                break
+            cursor = history.get('response_metadata', {}).get('next_cursor')
+
+        user_names_cache = {}
+        formatted_messages = []
+        for msg in all_messages:
+            msg_user_id = msg.get('user')
+            msg_text = msg.get('text', '').strip()
+            if not msg_user_id or not msg_text:
+                continue
+            
+            if msg_user_id not in user_names_cache:
+                user_names_cache[msg_user_id] = f"<@{msg_user_id}>"
+                # try:
+                #     user_info = await client.users_info(user=msg_user_id)
+                #     user_names_cache[msg_user_id] = user_info['user']['profile']['real_name_normalized']
+                # except SlackApiError:
+                #     user_names_cache[msg_user_id] = f"<@{msg_user_id}>"
+            
+            user_name = user_names_cache[msg_user_id]
+            formatted_messages.append(f"**{user_name}**: {msg_text}")
+
+        if not formatted_messages:
+            return "There doesn't seem to be any text content to summarize in this thread.", None
+        
+        thread_content = "\n".join(formatted_messages)
+        summary_text = await self.architect_service.summarize_thread(thread_content)
+        return summary_text, all_messages
+
     def _register_handlers(self):
         """Register all Architect-specific Slack event handlers"""
         
@@ -184,12 +229,109 @@ class ArchitectBotHandler:
                 logger.error(f"Quick docs search failed: {e}")
                 await say(f"❌ Documentation search failed: {str(e)}")
 
+        @self.app.event("app_mention")
+        async def handle_mention(body, say, context, client: WebClient, logger):
+            """Handle direct mentions of the bot for research or thread summarization."""
+            event = body['event']
+            text = event['text']
+            user_id = event['user']
+            thread_ts = event.get('thread_ts', event['ts'])
+            channel = event['channel']
+
+            bot_user_id = context.get("bot_user_id", "")
+            query_text = re.sub(f"<@{bot_user_id}>", "", text).strip()
+
+            # Check for summarization keywords
+            if any(keyword in query_text.lower() for keyword in ['summary', 'summarise', 'summarize']):
+                url_match = re.search(r"<https?://[\w.-]+\.slack\.com/archives/(\w+)/p(\d+)>", query_text)
+                if url_match:
+                    # URL summarization
+                    summarize_channel_id = url_match.group(1)
+                    ts_string = url_match.group(2)
+                    summarize_thread_ts = f"{ts_string[:-6]}.{ts_string[-6:]}"
+                    
+                    await client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=f"Sure, I'll summarize the linked thread for you. One moment... 🧐")
+                    try:
+                        summary_text, messages = await self._get_thread_summary(client, summarize_channel_id, summarize_thread_ts)
+                        if messages:
+                            try:
+                                messages_json = json.dumps(messages, indent=2)
+                                with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".json") as temp_file:
+                                    temp_file.write(messages_json)
+                                    temp_file_path = temp_file.name
+                                
+                                await client.files_upload_v2(
+                                    channel=channel,
+                                    thread_ts=thread_ts,
+                                    file=temp_file_path,
+                                    title="Thread Messages (JSON)",
+                                    initial_comment="Here are the raw messages from the thread for debugging."
+                                )
+                                os.remove(temp_file_path)
+                            except Exception as json_e:
+                                logger.error(f"Failed to serialize and upload messages as JSON: {json_e}")
+                        if summary_text:
+                            await client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=summary_text)
+                    except Exception as e:
+                        logger.error(f"URL Thread summarization failed: {e}", exc_info=True)
+                        await client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=f"❌ I ran into an issue trying to summarize the linked thread: {str(e)}")
+                else:
+                    # Current thread summarization
+                    if 'thread_ts' not in event:
+                        await say("I can only summarize conversations in a thread. Please mention me in a reply to the thread you want summarized.")
+                        return
+                    
+                    await say(f"Sure, I'll summarize this thread for you. One moment... 🧐")
+                    try:
+                        summary_text, messages = await self._get_thread_summary(client, channel, thread_ts)
+                        if summary_text:
+                            await say(summary_text)
+                        if messages:
+                            try:
+                                messages_json = json.dumps(messages, indent=2)
+                                with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".json") as temp_file:
+                                    temp_file.write(messages_json)
+                                    temp_file_path = temp_file.name
+                                
+                                await client.files_upload_v2(
+                                    channel=channel,
+                                    thread_ts=thread_ts,
+                                    file=temp_file_path,
+                                    title="Thread Messages (JSON)",
+                                    initial_comment="Here are the raw messages from the thread for debugging."
+                                )
+                                os.remove(temp_file_path)
+                            except Exception as json_e:
+                                logger.error(f"Failed to serialize and upload messages as JSON: {json_e}")
+                    except Exception as e:
+                        logger.error(f"Thread summarization failed: {e}", exc_info=True)
+                        await say(f"❌ I ran into an issue trying to summarize the thread: {str(e)}")
+                return
+
+            # --- Fallback to original research logic ---
+            if not query_text:
+                await say("How can I help you? You can ask me to research a topic or `summarize` a thread.", thread_ts=thread_ts)
+                return
+            
+            await say(f"🏗️ Starting deep research on: *{query_text}*", thread_ts=thread_ts)
+            try:
+                result = await self.architect_service.conduct_research(
+                    query=query_text,
+                    user_id=user_id,
+                    thread_id=thread_ts,
+                    channel_id=channel,
+                    include_visualizations=True,
+                    num_charts=5
+                )
+                await send_architect_results(say, result, self.app.client, channel, thread_ts)
+            except Exception as e:
+                logger.error(f"Mention request for research failed: {e}", exc_info=True)
+                await say(f"❌ Research failed: {str(e)}", thread_ts=thread_ts)
+
         @self.app.event("message")
-        async def handle_message_events(body, logger,say):
-            logger.info(body)
+        async def handle_message_events(body, logger, say, client: WebClient):
             event = body.get('event', {})
             files = event.get('files', [])
-            
             if event.get('subtype') == 'file_share' and files:
                 for f in files:
                     mimetype = f.get('mimetype', '')
