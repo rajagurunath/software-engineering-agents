@@ -184,6 +184,92 @@ class ArchitectBotHandler:
                 logger.error(f"Quick docs search failed: {e}")
                 await say(f"❌ Documentation search failed: {str(e)}")
 
+        @self.app.event("app_mention")
+        async def handle_mention(body, say, context, client: WebClient, logger):
+            """Handle direct mentions of the bot for research or thread summarization."""
+            event = body['event']
+            text = event['text']
+            user_id = event['user']
+            thread_ts = event.get('thread_ts', event['ts'])
+            channel = event['channel']
+
+            bot_user_id = context.get("bot_user_id", "")
+            query_text = re.sub(f"<@{bot_user_id}>", "", text).strip()
+
+            # Check for summarization keywords
+            if any(keyword in query_text.lower() for keyword in ['summary', 'summarise', 'summarize']):
+                if 'thread_ts' not in event:
+                    await say("I can only summarize conversations in a thread. Please mention me in a reply to the thread you want summarized.", thread_ts=event['ts'])
+                    return
+
+                await say(f"Sure, I'll summarize this thread for you. One moment... 🧐", thread_ts=thread_ts)
+                try:
+                    # 1. Fetch thread history
+                    history = await client.conversations_replies(channel=channel, ts=thread_ts, limit=999)
+                    messages = history.get('messages', [])
+                    
+                    # 2. Format messages for the LLM, fetching user names
+                    user_names_cache = {}
+                    formatted_messages = []
+                    for msg in messages:
+                        msg_user_id = msg.get('user')
+                        msg_text = msg.get('text', '').strip()
+                        if not msg_user_id or not msg_text:
+                            continue
+                        
+                        # Fetch user name if not in cache
+                        if msg_user_id not in user_names_cache:
+                            try:
+                                user_info = await client.users_info(user=msg_user_id)
+                                user_names_cache[msg_user_id] = user_info['user']['profile']['real_name_normalized']
+                            except SlackApiError:
+                                user_names_cache[msg_user_id] = "Unknown User"
+                        
+                        user_name = user_names_cache[msg_user_id]
+                        formatted_messages.append(f"**{user_name}**: {msg_text}")
+
+                    if not formatted_messages:
+                        await say("There doesn't seem to be any text content to summarize in this thread.", thread_ts=thread_ts)
+                        return
+                    
+                    thread_content = "\n".join(formatted_messages)
+
+                    # 3. Call the architect service to summarize
+                    summary_text = await self.architect_service.summarize_thread(thread_content)
+
+                    # 4. Post the summary
+                    await say(text=summary_text, thread_ts=thread_ts)
+                    trace("slack.thread_summary_complete", {"user_id": user_id, "channel": channel})
+
+                except SlackApiError as e:
+                    logger.error(f"Slack API error during summarization: {e}")
+                    await say(f"❌ I couldn't fetch the thread history. Error: {e.response['error']}", thread_ts=thread_ts)
+                except Exception as e:
+                    logger.error(f"Thread summarization failed: {e}", exc_info=True)
+                    trace("slack.thread_summary_error", {"error": str(e)})
+                    await say(f"❌ I ran into an issue trying to summarize the thread: {str(e)}", thread_ts=thread_ts)
+                return
+
+            # --- Fallback to original research logic ---
+            if not query_text:
+                await say("How can I help you? You can ask me to research a topic or `summarize` a thread.", thread_ts=thread_ts)
+                return
+            
+            await say(f"🏗️ Starting deep research on: *{query_text}*", thread_ts=thread_ts)
+            try:
+                result = await self.architect_service.conduct_research(
+                    query=query_text,
+                    user_id=user_id,
+                    thread_id=thread_ts,
+                    channel_id=channel,
+                    include_visualizations=True,
+                    num_charts=5
+                )
+                await send_architect_results(say, result, self.app.client, channel, thread_ts)
+            except Exception as e:
+                logger.error(f"Mention request for research failed: {e}", exc_info=True)
+                await say(f"❌ Research failed: {str(e)}", thread_ts=thread_ts)
+
         @self.app.event("message")
         async def handle_message_events(body, logger,say):
             logger.info(body)

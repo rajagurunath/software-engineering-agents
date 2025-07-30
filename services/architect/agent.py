@@ -138,6 +138,47 @@ Always provide thorough, evidence-based analysis that helps users make informed 
             trace("architect.research_error", {"error": str(e)})
             raise
 
+    async def summarize_thread(self, thread_content: str) -> str:
+        """
+        Summarizes a given string of Slack thread content using the summarizer_agent.
+
+        Args:
+            thread_content: A formatted string containing the thread's messages,
+                            including participant names.
+
+        Returns:
+            A markdown-formatted string containing the summary.
+        """
+        logger.info("Starting thread summarization with summarizer_agent.")
+        
+        # This prompt is specifically designed for the thread summarization task
+        prompt = f"""
+You are an expert assistant that summarizes Slack conversations.
+The following text is a transcript of a Slack thread, with each message prefixed by the participant's name.
+
+Your task is to create a summary with two distinct sections:
+1.  **General Summary**: A concise paragraph covering the main topics, key questions, and any decisions or action items that came out of the discussion.
+2.  **Key Points per Participant**: A section that lists each person who spoke. Under each name, provide a bulleted list of their primary contributions, questions, and conclusions.
+
+Please format the entire output using Slack's markdown for readability.
+
+**Thread Content to Summarize:**
+---
+{thread_content}
+---
+"""
+        
+        try:
+            # Use the existing summarizer agent to run the task
+            response = await self.summarizer_agent.run(prompt)
+            summary = response.data
+            trace("architect.thread_summary_complete", {"summary_length": len(summary)})
+            return summary
+        except Exception as e:
+            logger.error(f"Failed to generate thread summary using agent: {e}", exc_info=True)
+            trace("architect.thread_summary_error", {"error": str(e)})
+            return f"❌ I'm sorry, I encountered an error while trying to generate the summary: {e}"
+    # --- END OF ADDED METHOD --->
     async def _create_research_plan(self, request: ArchitectRequest, research_id: str) -> ResearchPlan:
         """Create a detailed research plan"""
         

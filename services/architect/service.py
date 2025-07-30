@@ -93,6 +93,41 @@ class ArchitectService:
             trace("architect_service.research_error", {"error": str(e)})
             raise
 
+    async def summarize_thread(self, thread_content: str) -> str:
+        """
+        Summarizes a given string of thread content using an LLM.
+
+        Args:
+            thread_content: A formatted string containing the entire thread's messages.
+
+        Returns:
+            A markdown-formatted string containing the summary.
+        """
+        # This is a high-level system prompt that works well for this task.
+        # It instructs the LLM on the desired output format.
+        system_prompt = """
+        You are a helpful assistant specialized in summarizing Slack conversations.
+        Your task is to provide a clear and concise summary of the provided thread.
+        Please structure your output as follows:
+
+        1.  **General Summary**: A brief, high-level overview of the entire discussion, including the main topics, questions, and any conclusions or action items.
+        2.  **Key Points per Participant**: Under this heading, list each participant who contributed to the thread. For each person, create a bulleted list of their most important points, questions asked, and decisions made.
+
+        Format your entire response in Slack's markdown.
+    """
+    
+        # This is a conceptual example. Replace with your actual LLM client call.
+        # Here you would call your LLM service (e.g., OpenAI, Anthropic, Gemini)
+        # This is a conceptual example. Replace with your actual LLM client call.
+        try:
+            summary = await self.agent.summarize_thread(thread_content=thread_content)
+            return summary
+
+        except Exception as e:
+            logger.error(f"LLM summarization call failed: {e}")
+            return f"I'm sorry, but I was unable to generate a summary due to an internal error: {e}"
+
+
     async def get_research_status(self, research_id: str) -> Optional[Dict[str, Any]]:
         """Get the status of a research request"""
         if research_id in self.active_research:
