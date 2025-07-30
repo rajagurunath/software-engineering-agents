@@ -150,7 +150,7 @@ Always provide thorough, evidence-based analysis that helps users make informed 
             A markdown-formatted string containing the summary.
         """
         logger.info("Starting thread summarization with summarizer_agent.")
-        
+        print(thread_content)
         # This prompt is specifically designed for the thread summarization task
         prompt = f"""
 You are an expert assistant that summarizes Slack conversations.
@@ -160,6 +160,7 @@ Your task is to create a summary with two distinct sections:
 1.  **General Summary**: A concise paragraph covering the main topics, key questions, and any decisions or action items that came out of the discussion.
 2.  **Key Points per Participant**: A section that lists each person who spoke. Under each name, provide a bulleted list of their primary contributions, questions, and conclusions.
 
+!!! Important: Make sure to summarise points for all the participants in the thread, not just the last few.
 Please format the entire output using Slack's markdown for readability.
 
 **Thread Content to Summarize:**
