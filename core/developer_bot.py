@@ -287,6 +287,33 @@ This will:
             )
             
             await say(f"❌ <@{user_id}> rejected execution {execution_id}")
+        
+        @self.app.event("app_mention")
+        async def handle_app_mentions(body, say, logger):
+            """ 
+            Handle app mentions and route it to the appropriate handler 
+            - create PR
+            - review PR
+            - handle comments
+            - Create PR to fix trivy vulnerability issue (new one)
+            """
+            logger.info(body)
+            text = body['event']['text']
+            user_id = body['event']['user']
+            thread_ts = body['event'].get('thread_ts', body['event']['ts'])
+            
+            # Check for specific commands
+            if "create pr" in text.lower():
+                await handle_pr_creation(body['event'], say, None)
+            elif "review pr" in text.lower():
+                await handle_pr_review(body['event'], say, None)
+            elif "handle comments" in text.lower():
+                await handle_pr_comments(body['event'], say, None)
+            elif "fix trivy vulnerability" in text.lower():
+                # TODO: Implement specific handler for Trivy vulnerability fix
+                ...
+            else:
+                await say(f"👋 Hi <@{user_id}>, I can help you with PR reviews, PR creation, handling PR comments and vulnerability fixer. How can I assist you today?")
 
         @self.app.event("message")
         async def handle_message_events(body, logger):
