@@ -4,7 +4,7 @@ Developer Bot Handler - Dedicated Slack bot for Junior/Senior Engineer Agent
 import logging
 import re
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk import WebClient
@@ -16,7 +16,8 @@ from models.schemas import PRReviewRequest, PRCreationRequest, PRCommentHandling
 from utils.slack_response_helpers import (
     send_review_results,
     send_creation_results, 
-    send_comment_handling_results
+    send_comment_handling_results,
+    create_say_function
 )
 from config.settings import settings
 from utils.opik_tracer import trace
@@ -50,10 +51,14 @@ class DeveloperBotHandler:
                 user_id = message['user']
                 thread_ts = message.get('thread_ts', message['ts'])
                 
+                # Thread-aware say
+                client = WebClient(token=settings.slack_developer_bot_token)
+                thread_say = create_say_function(client, message['channel'], thread_ts)
+                
                 # Extract PR URL from message
                 pr_url = self._extract_pr_url(text)
                 if not pr_url:
-                    await say("Please provide a valid GitHub PR URL")
+                    await thread_say("Please provide a valid GitHub PR URL")
                     return
                     
                 # Extract Linear issue ID if present
@@ -67,13 +72,13 @@ class DeveloperBotHandler:
                     linear_issue_id=linear_issue_id
                 )
                 
-                await say("🔍 Starting PR review... This may take a moment.")
+                await thread_say("🔍 Starting PR review... This may take a moment.")
                 
                 # Start workflow
                 result = await self.workflows.pr_review_workflow(review_request)
                 
                 # Send results
-                await send_review_results(say, result)
+                await send_review_results(thread_say, result)
                 
                 trace("slack.pr_review_complete", {
                     "pr_url": pr_url,
@@ -83,7 +88,7 @@ class DeveloperBotHandler:
             except Exception as e:
                 logger.error(f"Error in PR review: {e}")
                 trace("slack.pr_review_error", {"error": str(e)})
-                await say(f"❌ Error reviewing PR: {str(e)}")
+                await thread_say(f"❌ Error reviewing PR: {str(e)}")
 
         @self.app.message("create pr")
         async def handle_pr_creation(message, say, context):
@@ -97,10 +102,14 @@ class DeveloperBotHandler:
                 user_id = message['user']
                 thread_ts = message.get('thread_ts', message['ts'])
                 
+                # Thread-aware say
+                client = WebClient(token=settings.slack_developer_bot_token)
+                thread_say = create_say_function(client, message['channel'], thread_ts)
+                
                 # Parse the structured command
                 parsed_input = self._parse_structured_pr_command(text)
                 if not parsed_input:
-                    await say("""
+                    await thread_say("""
 🚀 **Create PR Command Formats:**
 
 **Option 1: Multi-line structured format**
@@ -144,7 +153,7 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                 
                 # Validate URL format
                 if not repo_url.startswith('https://github.com/'):
-                    await say(f"❌ Invalid GitHub URL format: {repo_url}\nPlease use: https://github.com/owner/repo")
+                    await thread_say(f"❌ Invalid GitHub URL format: {repo_url}\nPlease use: https://github.com/owner/repo")
                     return
                 
                 # Handle Linear ticket if provided
@@ -159,10 +168,10 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                             if linear_context:
                                 description = linear_context.get('title', description)
                             else:
-                                await say(f"⚠️ Could not fetch Linear details for {linear_issue_id}")
+                                await thread_say(f"⚠️ Could not fetch Linear details for {linear_issue_id}")
                         except Exception as e:
                             logger.warning(f"Linear API error: {e}")
-                            await say(f"⚠️ Linear API error: {str(e)}")
+                            await thread_say(f"⚠️ Linear API error: {str(e)}")
                 
                 # Generate feature branch name
                 feature_branch_name = self._generate_feature_branch_name(description)
@@ -179,13 +188,13 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                     user_id=user_id
                 )
                 
-                await say(f"🚀 Starting PR creation...\n📂 Repository: {repo_url}\n🌿 Base branch: {base_branch}\n🆕 Feature branch: {feature_branch_name}\n📝 Description: {description}")
+                await thread_say(f"🚀 Starting PR creation...\n📂 Repository: {repo_url}\n🌿 Base branch: {base_branch}\n🆕 Feature branch: {feature_branch_name}\n📝 Description: {description}")
                 
                 # Start workflow
                 result = await self.workflows.pr_creation_workflow(pr_request)
                 
                 # Send results
-                await send_creation_results(say, result)
+                await send_creation_results(thread_say, result)
                 
                 trace("slack.pr_creation_complete", {
                     "pr_url": result.pr_url,
@@ -195,7 +204,7 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
             except Exception as e:
                 logger.error(f"Error in PR creation: {e}")
                 trace("slack.pr_creation_error", {"error": str(e)})
-                await say(f"❌ Error creating PR: {str(e)}")
+                await thread_say(f"❌ Error creating PR: {str(e)}")
 
         @self.app.message("handle comments")
         async def handle_pr_comments(message, say, context):
@@ -210,10 +219,14 @@ create pr --repo=https://github.com/owner/repo --branch=develop --linear=https:/
                 thread_ts = message.get('thread_ts', message['ts'])
                 channel_id = message['channel']
                 
+                # Thread-aware say
+                client = WebClient(token=settings.slack_developer_bot_token)
+                thread_say = create_say_function(client, channel_id, thread_ts)
+                
                 # Extract PR URL from message
                 pr_url = self._extract_pr_url(text)
                 if not pr_url:
-                    await say("""
+                    await thread_say("""
 🔧 **Handle Comments Command Format:**
 
 ```
@@ -231,7 +244,7 @@ This will:
                 
                 # Validate it's a PR URL
                 if '/pull/' not in pr_url:
-                    await say("❌ Please provide a valid GitHub PR URL (must contain '/pull/')")
+                    await thread_say("❌ Please provide a valid GitHub PR URL (must contain '/pull/')")
                     return
                 
                 # Create comment handling request
@@ -242,13 +255,13 @@ This will:
                     channel_id=channel_id
                 )
                 
-                await say(f"🔧 Starting to handle PR comments for: {pr_url}\n⏳ This may take a few minutes...")
+                await thread_say(f"🔧 Starting to handle PR comments for: {pr_url}\n⏳ This may take a few minutes...")
                 
                 # Start workflow
                 result = await self.workflows.pr_comment_handling_workflow(comment_request)
                 
                 # Send results
-                await send_comment_handling_results(say, result)
+                await send_comment_handling_results(thread_say, result)
                 
                 trace("slack.pr_comments_complete", {
                     "pr_url": pr_url,
@@ -258,7 +271,7 @@ This will:
             except Exception as e:
                 logger.error(f"Error in PR comment handling: {e}")
                 trace("slack.pr_comments_error", {"error": str(e)})
-                await say(f"❌ Error handling PR comments: {str(e)}")
+                await thread_say(f"❌ Error handling PR comments: {str(e)}")
 
         @self.app.action("approve")
         async def handle_approval(ack, body, say):
@@ -310,10 +323,10 @@ This will:
             elif "handle comments" in text.lower():
                 await handle_pr_comments(body['event'], say, None)
             elif "fix trivy vulnerability" in text.lower():
-                # TODO: Implement specific handler for Trivy vulnerability fix
-                ...
+                # Handle Trivy vulnerability fixing
+                await handle_trivy_vulnerability(body['event'], say, None)
             else:
-                await say(f"👋 Hi <@{user_id}>, I can help you with PR reviews, PR creation, handling PR comments and vulnerability fixer. How can I assist you today?")
+                await say(f"👋 Hi <@{user_id}>, I can help you with PR reviews, PR creation, handling PR comments and vulnerability fixer. How can I assist you today?", thread_ts=thread_ts)
 
         @self.app.event("message")
         async def handle_message_events(body, logger):
@@ -323,7 +336,131 @@ This will:
         async def handle_assistant_thread_started_events(body, logger, say):
             logger.info(body)
             user_id = body['event']['assistant_thread']['user_id']
-            await say(f"Hello <@{user_id}>, I am your Development Engineer! I can help you with PR reviews, PR creation, and handling PR comments. How can I assist you today?")
+            await say(f"Hello <@{user_id}>, I am your Development Engineer! I can help you with PR reviews, PR creation, handling PR comments, and fixing Trivy vulnerabilities. How can I assist you today?")
+
+        @self.app.message(re.compile(r"fix trivy vulnerability", re.IGNORECASE))
+        async def handle_trivy_vulnerability(message, say, context):
+            """
+            Handle Trivy vulnerability fix requests.
+            Expected formats (examples):
+              fix trivy vulnerability
+              repo: https://github.com/owner/repo
+              branch: main
+              logs:
+              <paste trivy output text here>
+              
+            Or one-liner:
+              fix trivy vulnerability --repo=https://github.com/o/r --branch=main --logs="...trivy output..."
+            """
+            trace("slack.trivy_fix_request", {
+                "user_id": message['user'],
+                "text": message['text'][:200]
+            })
+            try:
+                text = message['text']
+                user_id = message['user']
+                channel_id = message['channel']
+                thread_ts = message.get('thread_ts', message['ts'])
+
+                # Thread-aware say
+                client = WebClient(token=settings.slack_developer_bot_token)
+                thread_say = create_say_function(client, channel_id, thread_ts)
+
+                # Parse input
+                parsed = self._parse_trivy_command(text)
+                if not parsed:
+                    await thread_say("""🛡️ Trivy Fix Command Formats:
+
+Option 1: Multi-line (raw text logs)
+```
+fix trivy vulnerability
+repo: https://github.com/owner/repo
+branch: main
+description: Fix Trivy vulnerabilities
+logs:
+<PASTE TRIVY TEXT OUTPUT HERE>
+```
+
+Option 2: Multi-line (JSON)
+```
+fix trivy vulnerability
+repo: https://github.com/owner/repo
+branch: main
+json:
+{
+  "Results": [ ... ]
+}
+```
+
+Option 3: One-line (raw text)
+```
+fix trivy vulnerability --repo=https://github.com/owner/repo --branch=main --desc="Fix Trivy vulns" --logs="<paste or brief>"
+```
+
+Option 4: One-line (JSON)
+```
+fix trivy vulnerability --repo=https://github.com/owner/repo --branch=main --desc="Fix Trivy vulns" --json='{"Results":[...]}'
+```
+
+Notes:
+- JSON takes precedence if both logs and json are provided.
+- You can also paste JSON in a ```json ... ``` code block after 'json:'.
+""")
+                    return
+
+                repo_url = parsed["repo_url"]
+                base_branch = parsed["base_branch"]
+                description = parsed.get("description") or "Fix security vulnerabilities reported by Trivy"
+                trivy_raw_logs = parsed.get("logs") or ""
+
+                if not repo_url.startswith("https://github.com/"):
+                    await thread_say(f"❌ Invalid GitHub URL format: {repo_url}\nPlease use: https://github.com/owner/repo")
+                    return
+
+                # Build request for workflow
+                from models.schemas import TrivyScanRequest
+                # Try to parse JSON content if provided
+                trivy_json = parsed.get("trivy_json")
+                if not trivy_json:
+                    try:
+                        import json as _json
+                        raw = (trivy_raw_logs or "").strip()
+                        if raw.startswith("{") or raw.startswith("["):
+                            trivy_json = _json.loads(raw)
+                    except Exception:
+                        trivy_json = None
+
+                scan_request = TrivyScanRequest(
+                    repo_url=repo_url,
+                    base_branch=base_branch,
+                    branch_name=None,
+                    description=description,
+                    trivy_raw_logs=trivy_raw_logs,
+                    trivy_json=trivy_json,
+                    thread_id=thread_ts,
+                    channel_id=channel_id,
+                    user_id=user_id
+                )
+
+                await thread_say(f"🛡️ Starting Trivy remediation PR...\n📂 Repo: {repo_url}\n🌿 Base: {base_branch}\n📝 {description}\n⏳ This may take a few minutes.")
+                result = await self.workflows.trivy_vulnerability_workflow(scan_request)
+
+                # Post result
+                msg = f"✅ Opened security remediation PR: {result.pr_url}\n🗂️ Branch: {result.branch_name}\n📄 Files changed: {len(result.files_changed)}\n"
+                if result.unresolved_findings:
+                    unresolved = "\n".join(f"- {f.id} [{f.severity}] {f.package_name or ''} {f.current_version or ''}" for f in result.unresolved_findings[:10])
+                    msg += f"\n⚠️ Unresolved findings (review manually):\n{unresolved}"
+                await thread_say(msg)
+
+                trace("slack.trivy_fix_complete", {
+                    "pr_url": result.pr_url,
+                    "files_changed": len(result.files_changed)
+                })
+
+            except Exception as e:
+                logger.error(f"Error in Trivy vulnerability handler: {e}")
+                trace("slack.trivy_fix_error", {"error": str(e)})
+                await thread_say(f"❌ Error creating remediation PR: {str(e)}")
 
     def _parse_structured_pr_command(self, text: str) -> Dict[str, str]:
         """Parse structured PR command with multiple format support"""
@@ -413,6 +550,102 @@ This will:
         # Add unique suffix to avoid conflicts
         unique_suffix = uuid.uuid4().hex[:6]
         return f"feature/{branch_name}-{unique_suffix}"
+
+    def _parse_trivy_command(self, text: str) -> Optional[Dict[str, Any]]:
+        """
+        Parse Trivy fix command. Supports:
+        - One-line: fix trivy vulnerability --repo=... --branch=... --desc="..." --logs=".." and/or --json='...'
+        - Multi-line with 'repo:', 'branch:', optional 'description:', and either 'logs:' or 'json:' block
+        - Supports code-fenced JSON blocks (```json ... ```)
+        """
+        import json
+
+        # One-line flags
+        repo_match = re.search(r'--repo=([^\s]+)', text, re.IGNORECASE)
+        branch_match = re.search(r'--branch=([^\s]+)', text, re.IGNORECASE)
+        desc_match = re.search(r'--desc="([^"]+)"|--description="([^"]+)"', text, re.IGNORECASE)
+        logs_match = re.search(r'--logs="([^"]+)"', text, re.IGNORECASE | re.DOTALL)
+        json_match = re.search(r'--json=(?:"([^"]+)"|\'([^\']+)\')', text, re.IGNORECASE | re.DOTALL)
+
+        if repo_match and branch_match:
+            parsed: Dict[str, Any] = {
+                "repo_url": repo_match.group(1).strip("<>"),
+                "base_branch": branch_match.group(1),
+                "description": (desc_match.group(1) or desc_match.group(2)) if desc_match else "",
+            }
+            if logs_match:
+                parsed["logs"] = logs_match.group(1)
+            if json_match:
+                json_text = json_match.group(1) or json_match.group(2) or ""
+                try:
+                    parsed["trivy_json"] = json.loads(json_text)
+                except Exception:
+                    parsed["logs"] = json_text
+            return parsed
+
+        # Multi-line structure
+        lines = text.split("\n")
+        if not lines:
+            return None
+        if not re.search(r'fix\s+trivy\s+vulnerability', lines[0], re.IGNORECASE):
+            return None
+
+        parsed_ml: Dict[str, Any] = {}
+        capture_mode: Optional[str] = None  # "logs" or "json"
+        buf: List[str] = []
+        in_code_fence = False
+
+        for line in lines[1:]:
+            stripped = line.strip()
+
+            if stripped.startswith("```"):
+                in_code_fence = not in_code_fence
+                continue
+
+            if capture_mode:
+                buf.append(line)
+                continue
+
+            if ":" not in line:
+                continue
+
+            key, value = line.split(":", 1)
+            key = key.strip().lower()
+            value = value.strip().strip("<>")
+
+            if key == "repo":
+                parsed_ml["repo_url"] = value
+            elif key == "branch":
+                parsed_ml["base_branch"] = value
+            elif key in ("description", "desc"):
+                parsed_ml["description"] = value
+            elif key == "logs":
+                capture_mode = "logs"
+            elif key == "json":
+                capture_mode = "json"
+
+        if capture_mode:
+            content = "\n".join(buf).strip()
+            if capture_mode == "json":
+                try:
+                    parsed_ml["trivy_json"] = json.loads(content)
+                except Exception:
+                    # Attempt to recover JSON from content by extracting the first JSON object/array
+                    import re as _re
+                    m = _re.search(r'(\{.*\}|\[.*\])', content, _re.DOTALL)
+                    if m:
+                        try:
+                            parsed_ml["trivy_json"] = json.loads(m.group(1))
+                        except Exception:
+                            parsed_ml["logs"] = content
+                    else:
+                        parsed_ml["logs"] = content
+            else:
+                parsed_ml["logs"] = content
+
+        if "repo_url" not in parsed_ml or "base_branch" not in parsed_ml:
+            return None
+        return parsed_ml
 
     async def start(self):
         """Start the Developer Slack bot"""

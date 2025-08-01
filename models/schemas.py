@@ -80,3 +80,44 @@ class PRCommentHandlingResponse(BaseModel):
     files_modified: List[str]
     summary: str
     unresolved_comments: List[Dict[str, Any]]
+
+class TrivyFinding(BaseModel):
+    id: str  # e.g., CVE-2023-12345 or Pkg vulns id
+    severity: str  # CRITICAL|HIGH|MEDIUM|LOW|UNKNOWN
+    title: Optional[str] = None
+    description: Optional[str] = None
+    package_name: Optional[str] = None
+    current_version: Optional[str] = None
+    fixed_version: Optional[str] = None
+    installed_path: Optional[str] = None  # e.g., requirements.txt line or file path
+    references: List[str] = []
+    type: Optional[str] = None  # os-pkgs, library, config, secret, misconfiguration
+    target: Optional[str] = None  # file or image scanned
+    class Config:
+        arbitrary_types_allowed = True
+
+class TrivyScanRequest(BaseModel):
+    repo_url: str
+    base_branch: str
+    branch_name: Optional[str] = None
+    description: Optional[str] = None
+    trivy_raw_logs: str  # text pasted from Slack (non-JSON supported)
+    trivy_json: Optional[Dict[str, Any]] = None  # future: structured JSON if available
+    thread_id: str
+    channel_id: str
+    user_id: str
+
+class TrivyFixChange(BaseModel):
+    path: str
+    type: str  # modify|create|delete
+    content: str
+    reasoning: Optional[str] = None
+
+class TrivyScanResponse(BaseModel):
+    pr_url: str
+    branch_name: str
+    commits: List[str]
+    files_changed: List[str]
+    fixes_applied: List[TrivyFixChange]
+    unresolved_findings: List[TrivyFinding]
+    summary: str

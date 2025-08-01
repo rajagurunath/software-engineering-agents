@@ -199,7 +199,7 @@ async def send_architect_results(say, result, client: WebClient, channel: str, t
                 image_path = save_plotly_image_from_json(viz["plotly_json"])
                 if image_path:
                     try:
-                        await client.files_upload_v2(
+                        client.files_upload_v2(
                             channel=channel,
                             thread_ts=thread_ts,
                             file=image_path,
@@ -211,7 +211,7 @@ async def send_architect_results(say, result, client: WebClient, channel: str, t
         # Upload HTML report if available
         if result.html_report_path:
             try:
-                await client.files_upload_v2(
+                client.files_upload_v2(
                     channel=channel,
                     thread_ts=thread_ts,
                     file=result.html_report_path,
@@ -226,9 +226,10 @@ async def send_architect_results(say, result, client: WebClient, channel: str, t
         await say(f"✅ Research completed, but failed to send full results: {str(e)}")
 
 def create_say_function(client: WebClient, channel: str, thread_ts: str):
-    """Create a say function for architect results"""
+    """Create a say function that posts to a specific thread using sync WebClient (no await)."""
     async def say(text=None, blocks=None):
-        await client.chat_postMessage(
+        # WebClient is synchronous; do not await its methods
+        client.chat_postMessage(
             channel=channel,
             text=text,
             blocks=blocks,
