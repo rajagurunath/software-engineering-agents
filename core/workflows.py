@@ -8,6 +8,7 @@ from models.schemas import (
 from services.developer.pr_reviewer import PRReviewService
 from services.developer.pr_creator import PRCreatorService
 from services.developer.pr_comment_handler import PRCommentHandler
+from models.schemas import TrivyScanRequest, TrivyScanResponse
 from services.developer.approval_system import ApprovalService
 from config.settings import settings
 import logging
@@ -134,6 +135,32 @@ class PRWorkflows:
             
         except Exception as e:
             logger.exception("PR creation workflow failed")
+            await self._update_execution_status(
+                execution_id, TaskStatus.FAILED, {"error": str(e)}
+            )
+            raise
+            
+    DBOS.workflow()
+    async def trivy_vulnerability_workflow(self, request: TrivyScanRequest) -> TrivyScanResponse:
+        """
+        Workflow to take Trivy logs, analyze repo, prepare fixes and raise a PR.
+        - Parses raw logs (or JSON when available)
+        - Plans dependency/config changes (e.g., bump vulnerable packages in requirements.txt, Dockerfile base image updates)
+        - Creates a branch, applies changes, commits, pushes, and opens a PR with clear comments
+        """
+        execution_id = f"trivy-{request.thread_id}"
+        await self._update_execution_status(execution_id, TaskStatus.IN_PROGRESS, request.dict())
+
+        try:
+            # Delegate to PRCreatorService specialized method
+            result: TrivyScanResponse = await self.pr_creator.create_trivy_pr(request)
+
+            await self._update_execution_status(
+                execution_id, TaskStatus.COMPLETED, result.dict()
+            )
+            return result
+        except Exception as e:
+            logger.exception("Trivy vulnerability workflow failed")
             await self._update_execution_status(
                 execution_id, TaskStatus.FAILED, {"error": str(e)}
             )
